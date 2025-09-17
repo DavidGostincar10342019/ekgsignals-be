@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="description" content="EKG Analiza - Analiziraj svoj EKG signal fotografijom">
+    <meta name="keywords" content="EKG, analiza, aritmija, srce, zdravlje">
+    <meta name="author" content="EKG Analiza Tim">
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="EKG Analiza">
+    
+    <title>EKG Analiza - Mobilna Aplikacija</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1><i class="fas fa-heartbeat"></i> EKG Analiza</h1>
+            <p>Analiziraj svoj EKG signal fotografijom</p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-card">
+            <!-- Upload Section -->
+            <section id="uploadSection" class="upload-section">
+                <h2><i class="fas fa-upload"></i> Dodaj EKG Sliku</h2>
+                
+                <!-- Upload Area -->
+                <div id="uploadArea" class="upload-area">
+                    <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                    <div class="upload-text">
+                        Prevuci sliku ovde ili koristi dugmad ispod
+                    </div>
+                    <div class="upload-text" style="font-size: 0.9rem; color: #999;">
+                        Podržani formati: JPG, PNG, WEBP (max 10MB)
+                    </div>
+                </div>
+
+                <!-- Upload Buttons -->
+                <div class="upload-buttons">
+                    <button id="cameraBtn" class="btn btn-primary">
+                        <i class="fas fa-camera"></i>
+                        Fotografiši EKG
+                    </button>
+                    <button id="uploadBtn" class="btn btn-secondary">
+                        <i class="fas fa-folder-open"></i>
+                        Odaberi iz galerije
+                    </button>
+                </div>
+
+                <!-- Hidden File Inputs -->
+                <input type="file" id="cameraInput" accept="image/*" capture="environment">
+                <input type="file" id="fileInput" accept="image/*">
+
+                <!-- Upload Progress -->
+                <div id="uploadProgress" class="upload-progress">
+                    <div class="progress-info">
+                        <span class="progress-text">Upload u toku...</span>
+                        <span class="progress-percentage">0%</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div id="progressBar" class="progress-bar"></div>
+                    </div>
+                    <div class="progress-details">
+                        <span id="progressDetails">Priprema slike za upload...</span>
+                        <span id="uploadSpeed" class="upload-speed"></span>
+                    </div>
+                </div>
+
+                <!-- EKG Example Info Button -->
+                <div style="position: relative; margin: 20px 0;">
+                    <button class="info-button" onclick="showInfoModal('ekg-example')" style="position: absolute; top: 0; right: 0; z-index: 10;" title="Kako treba da izgleda EKG slika?">i</button>
+                </div>
+
+                <!-- Raw Signal Import -->
+                <div class="main-card" style="margin-top: 20px;">
+                    <h2><i class="fas fa-file-import"></i> Uvoz Sirovih EKG Podataka</h2>
+                    <p style="color: #666; margin-bottom: 20px;">Uvezite svoj sirovi EKG signal iz CSV, TXT ili JSON fajla</p>
+                    
+                    <div class="upload-buttons">
+                        <button id="rawSignalBtn" class="btn btn-primary">
+                            <i class="fas fa-file-upload"></i>
+                            Uvezi Sirovi Signal
+                        </button>
+                    </div>
+                    
+                    <!-- Hidden Raw Signal Input -->
+                    <input type="file" id="rawSignalInput" accept=".csv,.txt,.json,.dat,.hea,.atr,.xws" multiple style="display: none;">
+                    
+                    <!-- Raw Signal Info -->
+                    <div id="rawSignalInfo" class="upload-info" style="display: none; margin-top: 15px;">
+                        <div class="info-card">
+                            <h4><i class="fas fa-info-circle"></i> Podržani formati:</h4>
+                            <ul>
+                                <li><strong>CSV:</strong> Jedna kolona sa vrednostima signala</li>
+                                <li><strong>TXT:</strong> Brojevi odvojeni novim redom ili zarezom</li>
+                                <li><strong>JSON:</strong> {"signal": [0.1, 0.2, ...], "fs": 250}</li>
+                                <li><strong>WFDB:</strong> MIT-BIH format (.dat + .hea + .atr + .xws fajlovi)</li>
+                            </ul>
+                            <p style="margin-top: 10px;"><strong>Frekvencija uzorkovanja:</strong> Unesite vrednost (obično 250-500 Hz)</p>
+                            <div style="margin: 10px 0;">
+                                <label>Frekvencija uzorkovanja (Hz):</label>
+                                <input type="number" id="rawSignalFs" value="250" min="50" max="2000" style="width: 100px; margin-left: 10px;">
+                            </div>
+                            <div style="background: #fff3cd; padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 3px solid #ffc107;">
+                                <strong>💡 WFDB format:</strong> Za MIT-BIH fajlove (.dat/.hea/.atr/.xws) odaberite <strong>sve fajlove odjednom</strong> pomoću Ctrl+klik ili Cmd+klik
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Image Preview -->
+                <div id="imagePreview" class="image-preview">
+                    <img id="previewImage" class="preview-image" alt="EKG Preview">
+                    <div id="imageInfo" class="image-info"></div>
+                    <button id="analyzeBtn" class="btn btn-primary" disabled>
+                        <i class="fas fa-chart-line"></i>
+                        Analiziraj EKG
+                    </button>
+                </div>
+            </section>
+
+            <!-- Processing Section -->
+            <section id="processingSection" class="processing-section">
+                <h2><i class="fas fa-cog fa-spin"></i> Analiza u toku...</h2>
+                
+                <!-- EKG Wave Animation -->
+                <div class="ekg-wave">
+                    <div class="wave-line"></div>
+                </div>
+
+                <!-- Processing Steps -->
+                <div class="processing-steps">
+                    <div id="step1" class="step">
+                        <div class="step-icon">1</div>
+                        <span>Učitavanje slike...</span>
+                    </div>
+                    <div id="step2" class="step">
+                        <div class="step-icon">2</div>
+                        <span>Obrada slike i detekcija kontura...</span>
+                    </div>
+                    <div id="step3" class="step">
+                        <div class="step-icon">3</div>
+                        <span>Ekstrakcija digitalnog signala...</span>
+                    </div>
+                    <div id="step4" class="step">
+                        <div class="step-icon">4</div>
+                        <span>FFT frekvencijska analiza...</span>
+                    </div>
+                    <div id="step5" class="step">
+                        <div class="step-icon">5</div>
+                        <span>Detekcija R-pikova...</span>
+                    </div>
+                    <div id="step6" class="step">
+                        <div class="step-icon">6</div>
+                        <span>Analiza aritmija i generisanje izveštaja...</span>
+                    </div>
+                </div>
+
+                <p style="text-align: center; color: #666; margin-top: 20px;">
+                    <i class="fas fa-clock"></i> Molimo sačekajte, analiza može potrajati do 30 sekundi...
+                </p>
+            </section>
+
+            <!-- Results Section -->
+            <section id="resultsSection" class="results-section">
+                <h2><i class="fas fa-chart-bar"></i> Rezultati Analize</h2>
+
+                <!-- Overall Health Status -->
+                <div id="healthStatus" class="health-status status-normal">
+                    Analiza završena
+                </div>
+
+                <!-- Signal Information -->
+                <div class="result-card">
+                    <div class="result-header">
+                        <i class="fas fa-info-circle result-icon"></i>
+                        <h3 class="result-title">Informacije o Signalu</h3>
+                    </div>
+                    <div class="result-content">
+                        <div class="metric">
+                            <span class="metric-label">Broj uzoraka:</span>
+                            <span class="metric-value" id="signalLength">-</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Trajanje:</span>
+                            <span class="metric-value" id="signalDuration">-</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Frekvencija uzorkovanja:</span>
+                            <span class="metric-value" id="samplingRate">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Heart Rate Analysis -->
+                <div class="result-card">
+                    <div class="result-header">
+                        <i class="fas fa-heartbeat result-icon" style="color: #e74c3c;"></i>
+                        <h3 class="result-title">Analiza Srčanog Ritma</h3>
+                    </div>
+                    <div class="result-content">
+                        <div class="metric">
+                            <span class="metric-label">Prosečna frekvencija:</span>
+                            <span class="metric-value" id="avgBPM">-</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Minimalna frekvencija:</span>
+                            <span class="metric-value" id="minBPM">-</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Maksimalna frekvencija:</span>
+                            <span class="metric-value" id="maxBPM">-</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">HRV (varijabilnost):</span>
+                            <span class="metric-value" id="hrv">-</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Broj R-pikova:</span>
+                            <span class="metric-value" id="rPeaks">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Arrhythmia Detection -->
+                <div class="result-card">
+                    <div class="result-header">
+                        <i class="fas fa-exclamation-triangle result-icon" style="color: #f39c12;"></i>
+                        <h3 class="result-title">Detekcija Aritmija</h3>
+                    </div>
+                    <div class="result-content">
+                        <div id="arrhythmiasList" class="arrhythmia-list">
+                            <!-- Arrhythmias will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Signal Quality -->
+                <div class="result-card">
+                    <div class="result-header">
+                        <i class="fas fa-signal result-icon" style="color: #3498db;"></i>
+                        <h3 class="result-title">Kvalitet Signala</h3>
+                    </div>
+                    <div class="result-content">
+                        <div class="metric">
+                            <span class="metric-label">Ocena kvaliteta:</span>
+                            <span class="metric-value" id="signalQuality">-</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Signal-to-Noise Ratio:</span>
+                            <span class="metric-value" id="snrValue">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FFT Analysis -->
+                <div class="result-card">
+                    <div class="result-header">
+                        <i class="fas fa-wave-square result-icon" style="color: #9b59b6;"></i>
+                        <h3 class="result-title">FFT Analiza</h3>
+                    </div>
+                    <div class="result-content">
+                        <div class="metric">
+                            <span class="metric-label">Dominantna frekvencija:</span>
+                            <span class="metric-value" id="peakFreq">-</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Peak amplituda:</span>
+                            <span class="metric-value" id="peakAmp">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons">
+                    <button id="generateEkgImageBtn" class="btn btn-primary" style="display: none;">
+                        <i class="fas fa-image"></i>
+                        Generiši EKG Sliku
+                    </button>
+                    <button id="newAnalysisBtn" class="btn btn-secondary">
+                        <i class="fas fa-plus"></i>
+                        Nova Analiza
+                    </button>
+                    <button id="shareBtn" class="btn btn-secondary" onclick="shareResults()">
+                        <i class="fas fa-share-alt"></i>
+                        Podeli Rezultate
+                    </button>
+                </div>
+            </section>
+
+            <!-- Generated EKG Image Section -->
+            <section id="generatedImageSection" class="generated-image-section" style="display: none;">
+                <h2><i class="fas fa-image"></i> Generisana EKG Slika</h2>
+                
+                <div class="result-card">
+                    <div class="result-header">
+                        <i class="fas fa-image result-icon" style="color: #27ae60;"></i>
+                        <h3 class="result-title">Edukativna EKG Slika sa Parametrima</h3>
+                    </div>
+                    <div class="result-content">
+                        <div class="generated-image-container">
+                            <img id="generatedEkgImage" style="display: none; width: 100%; border: 2px solid #ddd; border-radius: 8px;" alt="Generisana EKG slika">
+                            <div id="imageGenerationProgress" style="text-align: center; padding: 40px; color: #666;">
+                                <i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                                <p>Generiše se edukativna EKG slika...</p>
+                            </div>
+                        </div>
+                        
+                        <div id="imageActions" style="margin-top: 15px; text-align: center; display: none;">
+                            <button id="downloadImageBtn" class="btn btn-secondary">
+                                <i class="fas fa-download"></i>
+                                Sačuvaj Sliku
+                            </button>
+                            <button id="analyzeGeneratedImageBtn" class="btn btn-primary">
+                                <i class="fas fa-chart-line"></i>
+                                Analiziraj Generisanu Sliku
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- Error Messages -->
+            <div id="errorMessage" class="error-message">
+                <i class="fas fa-exclamation-circle"></i>
+                <span id="errorText"></span>
+            </div>
+
+            <!-- Success Messages -->
+            <div id="successMessage" class="success-message">
+                <i class="fas fa-check-circle"></i>
+                <span id="successText"></span>
+            </div>
+
+            <!-- Medical Disclaimer -->
+            <div class="disclaimer">
+                <div class="disclaimer-title">⚠️ MEDICINSKI DISCLAIMER</div>
+                Ova aplikacija je namenjena isključivo za edukativne svrhe i preliminarnu analizu. 
+                Rezultati NE smeju biti korišćeni za medicinsku dijagnostiku bez konsultacije sa kvalifikovanim lekarom. 
+                U slučaju zdravstvenih problema, obratite se svom lekaru.
+            </div>
+        </main>
+    </div>
+
+    <!-- Info Modal -->
+    <div id="infoModal" class="info-modal">
+        <div class="info-modal-content">
+            <div class="info-modal-header">
+                <h3 id="infoModalTitle" class="info-modal-title">Informacije</h3>
+                <button class="info-close-btn" onclick="closeInfoModal()">&times;</button>
+            </div>
+            <div id="infoModalBody" class="info-modal-body">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    
+    <!-- Additional Functions -->
+    <script>
+        // Info Modal functionality
+        function showInfoModal(type) {
+            const modal = document.getElementById('infoModal');
+            const title = document.getElementById('infoModalTitle');
+            const body = document.getElementById('infoModalBody');
+            
+            const infoContent = getInfoContent(type);
+            title.textContent = infoContent.title;
+            body.innerHTML = infoContent.content;
+            
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeInfoModal() {
+            const modal = document.getElementById('infoModal');
+            modal.style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+
+        function getInfoContent(type) {
+            const content = {
+                steps: {
+                    title: '📚 Koraci Naučne Analize',
+                    content: `
+                        <div class="info-section">
+                            <h4>Šta predstavljaju koraci analize?</h4>
+                            <p>Ova sekcija prikazuje step-by-step proces kako je vaš EKG signal analiziran koristeći napredne naučne algoritme. Svaki korak koristi specifične matematičke formule iz naučnih radova.</p>
+                        </div>
+                        
+                        <div class="info-section">
+                            <h4>Koraci obrade:</h4>
+                            <div class="info-interpretation">
+                                <strong>Korak 1:</strong> Učitavanje i predobrada signala - uklanjanje šuma i artefakata<br>
+                                <strong>Korak 2:</strong> Spatial Filling Index - mera kompleksnosti signala<br>
+                                <strong>Korak 3:</strong> Time-Frequency analiza - kako se frekvencije menjaju kroz vreme<br>
+                                <strong>Korak 4:</strong> Wavelet dekompozicija - analiza na različitim skalama<br>
+                                <strong>Korak 5:</strong> Z-transformacija - analiza stabilnosti sistema<br>
+                                <strong>Korak 6:</strong> Interpretacija - kombinovanje svih rezultata
+                            </div>
+                        </div>
+                        
+                        <div class="info-section">
+                            <h4>Zašto je ovo važno?</h4>
+                            <p>Svaki korak pruža različite informacije o vašem EKG signalu. Kombinovanjem svih analiza dobijamo sveobuhvatnu sliku zdravlja srca.</p>
+                        </div>
+                    `
+                },
+                formulas: {
+                    title: '🧮 Matematičke Formule',
+                    content: `
+                        <div class="info-section">
+                            <h4>Spatial Filling Index (SFI)</h4>
+                            <div class="info-formula">SFI = log(N) / log(L/a)</div>
+                            <div class="info-interpretation">
+                                <strong>Šta meri:</strong> Geometrijsku kompleksnost EKG signala<br>
+                                <strong>Interpretacija:</strong>
+                                <div class="info-values">
+                                    <ul>
+                                        <li>SFI < 1.0: Jednostavan signal, mogući artefakt</li>
+                                        <li>1.0 ≤ SFI < 1.3: Normalna kompleksnost</li>
+                                        <li>SFI ≥ 1.3: Visoka kompleksnost, mogući patološki signal</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="info-section">
+                            <h4>Spektralna Entropija</h4>
+                            <div class="info-formula">H = -Σ p(f)log₂(p(f))</div>
+                            <div class="info-interpretation">
+                                <strong>Šta meri:</strong> Kompleksnost frekvencijskog spektra<br>
+                                <strong>Interpretacija:</strong> Viša entropija = kompleksniji, manje predvidljiv signal
+                            </div>
+                        </div>
+                        
+                        <div class="info-section">
+                            <h4>Wavelet Entropija</h4>
+                            <div class="info-formula">H_w = -Σ E_i log₂(E_i)</div>
+                            <div class="info-interpretation">
+                                <strong>Šta meri:</strong> Distribuciju energije kroz različite frekvencijske opsege<br>
+                                <strong>Interpretacija:</strong> Pokazuje da li signal ima regularan ili haotičan karakter
+                            </div>
+                        </div>
+                        
+                        <div class="info-section">
+                            <h4>Wiener Filter</h4>
+                            <div class="info-formula">W = S/(S+N)</div>
+                            <div class="info-interpretation">
+                                <strong>Šta meri:</strong> Odnos signala i šuma<br>
+                                <strong>Interpretacija:</strong> Vrednosti blizu 1 = čist signal, blizu 0 = puno šuma
+                            </div>
+                        </div>
+                    `
+                },
+                visualization: {
+                    title: '📊 Edukativna Vizualizacija',
+                    content: `
+                        <div class="info-section">
+                            <h4>Šta prikazuje vizualizacija?</h4>
+                            <p>Ova slika kombinuje sve analize u jednu sveobuhvatnu vizualizaciju koja pokazuje:</p>
+                        </div>
+                        
+                        <div class="info-section">
+                            <div class="info-interpretation">
+                                <strong>Gornji deo:</strong> Originalni EKG signal sa označenim R-pikovima i karakteristikama<br>
+                                <strong>Srednji deo:</strong> Frekvencijski spektar i wavelet dekompozicija<br>
+                                <strong>Donji deo:</strong> Z-ravan sa polovima/nulama i matematičke formule
+                            </div>
+                        </div>
+                        
+                        <div class="info-section">
+                            <h4>Kako čitati dijagram?</h4>
+                            <div class="info-values">
+                                <h5>Boje na dijagramu:</h5>
+                                <ul>
+                                    <li><strong>Plava:</strong> Originalni EKG signal</li>
+                                    <li><strong>Crvena:</strong> R-pikovi (srčani otkucaji)</li>
+                                    <li><strong>Zelena:</strong> P-talasi (pretkomore)</li>
+                                    <li><strong>Žuta:</strong> T-talasi (repolarizacija)</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="info-section">
+                            <h4>Edukativna vrednost</h4>
+                            <p>Ova vizualizacija vam omogućava da vidite kako različiti matematički algoritmi "vide" vaš EKG signal i kako dolaze do svojih zaključaka.</p>
+                        </div>
+                    `
+                },
+                advanced: {
+                    title: '🧠 Napredni Rezultati',
+                    content: `
+                        <div class="info-section">
+                            <h4>Kompleksnost signala</h4>
+                            <div class="info-interpretation">
+                                <strong>Šta znači:</strong> Mera koliko je vaš EKG signal geometrijski složen<br>
+                                <strong>Klinički značaj:</strong> Veća kompleksnost može ukazivati na aritmije ili patološka stanja
+                            </div>
+                            <div class="info-values">
+                                <h5>Interpretacija:</h5>
+                                <ul>
+                                    <li><strong>Niska:</strong> Regularan, zdrav ritam</li>
+                                    <li><strong>Umerena:</strong> Blage nepravilnosti</li>
+                                    <li><strong>Visoka:</strong> Značajne nepravilnosti, potrebna pažnja</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="info-section">
+                            <h4>Stabilnost frekvencije</h4>
+                            <div class="info-interpretation">
+                                <strong>Šta znači:</strong> Koliko se frekvencijski sadržaj menja kroz vreme<br>
+                                <strong>Klinički značaj:</strong> Nestabilnost može ukazivati na aritmije
+                            </div>
+                        </div>
+                        
+                        <div class="info-section">
+                            <h4>Wavelet kompleksnost</h4>
+                            <div class="info-interpretation">
+                                <strong>Šta znači:</strong> Analiza signala na različitim vremenskim skalama<br>
+                                <strong>Klinički značaj:</strong> Otkriva suptilne promene koje nisu vidljive u osnovnoj analizi
+                            </div>
+                        </div>
+                        
+                        <div class="info-section">
+                            <h4>Ukupna procena</h4>
+                            <p>Kombinuje sve napredne analize u jednu preporuku. Ova procena je bazirana na naučnim algoritmima, ali <strong>ne zamenjuje medicinsku dijagnostiku</strong>.</p>
+                            
+                            <div class="info-values">
+                                <h5>Mogući zaključci:</h5>
+                                <ul>
+                                    <li><strong>"Normalan ritam":</strong> Svi parametri u normalnim granicama</li>
+                                    <li><strong>"Blage nepravilnosti":</strong> Neki parametri van normale, praćenje preporučeno</li>
+                                    <li><strong>"Potrebna pažnja":</strong> Više parametara ukazuje na mogući problem</li>
+                                </ul>
+                            </div>
+                        </div>
+                    `
+                },
+                'ekg-example': {
+                    title: '📋 Kako treba da izgleda EKG slika',
+                    content: `
+                        <div class="info-section">
+                            <h4>🎯 Kratki koraci za dobru EKG sliku:</h4>
+                            <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                                <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                                    <span style="background: #27ae60; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;">1</span>
+                                    <strong>Postavite EKG papir na ravnu površinu</strong>
+                                </div>
+                                <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                                    <span style="background: #27ae60; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;">2</span>
+                                    <strong>Osvetlite ravnomerno (bez senki)</strong>
+                                </div>
+                                <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                                    <span style="background: #27ae60; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;">3</span>
+                                    <strong>Fotografišite horizontalno (landscape)</strong>
+                                </div>
+                                <div style="display: flex; align-items: center;">
+                                    <span style="background: #27ae60; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;">4</span>
+                                    <strong>Proverite da li su linije jasne</strong>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="info-section">
+                            <h4>📊 Vizuelni primer dobre EKG slike:</h4>
+                            <div style="background: #f8f9ff; padding: 20px; border-radius: 10px; text-align: center; margin: 15px 0;">
+                                <div style="border: 2px solid #667eea; border-radius: 8px; padding: 15px; background: white; position: relative;">
+                                    <div style="position: absolute; top: 5px; left: 5px; font-size: 0.8rem; color: #667eea;">✅ DOBRA SLIKA</div>
+                                    
+                                    <!-- Simulacija EKG grid-a -->
+                                    <div style="background: linear-gradient(90deg, #f0f0f0 1px, transparent 1px), linear-gradient(#f0f0f0 1px, transparent 1px); background-size: 10px 10px; height: 80px; position: relative; margin: 10px 0;">
+                                        <!-- Simulacija EKG signala -->
+                                        <svg width="100%" height="80" style="position: absolute; top: 0;">
+                                            <path d="M 10 40 L 50 40 L 55 20 L 60 60 L 65 30 L 70 40 L 120 40 L 125 20 L 130 60 L 135 30 L 140 40 L 190 40" 
+                                                  stroke="#2c3e50" stroke-width="2" fill="none"/>
+                                        </svg>
+                                    </div>
+                                    
+                                    <div style="font-size: 0.9rem; color: #2c3e50;">
+                                        <strong>Karakteristike:</strong> Vidljiv grid, jasne linije, dobar kontrast
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="info-section">
+                            <h4>❌ Šta NEĆE biti prihvaćeno:</h4>
+                            <div style="background: #ffebee; padding: 15px; border-radius: 8px; border-left: 4px solid #e74c3c;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                    <div>
+                                        <strong>🚫 Loše slike:</strong><br>
+                                        • Zamućene fotografije<br>
+                                        • Slike bez grid-a<br>
+                                        • Portrait format<br>
+                                        • Slab kontrast
+                                    </div>
+                                    <div>
+                                        <strong>🚫 Pogrešan sadržaj:</strong><br>
+                                        • Obične fotografije<br>
+                                        • Čisto obojene slike<br>
+                                        • Tekst dokumenti<br>
+                                        • Crteži/skice
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="info-section">
+                            <h4>🔍 Kako aplikacija validira sliku:</h4>
+                            <div class="info-formula">
+                                Validacija = Grid + Signal + Kontrast + Format
+                            </div>
+                            <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 10px 0;">
+                                <strong>Automatska provera:</strong><br>
+                                1. <strong>Grid detekcija</strong> - traži mrežicu EKG papira<br>
+                                2. <strong>Signal analiza</strong> - pronalazi EKG krivulje<br>
+                                3. <strong>Kontrast test</strong> - proverava vidljivost<br>
+                                4. <strong>Format validacija</strong> - dimenzije i orijentacija
+                            </div>
+                        </div>
+                        
+                        <div class="info-section">
+                            <h4>💡 Pro saveti:</h4>
+                            <div class="info-interpretation">
+                                <strong>📱 Za najbolje rezultate:</strong><br>
+                                • Koristite dobro osvetljenje (prirodno svetlo je najbolje)<br>
+                                • Držite telefon paralelno sa papirom<br>
+                                • Fotografišite ceo EKG zapis odjednom<br>
+                                • Proverite da li su sve linije vidljive pre upload-a<br>
+                                • Ako slika nije prihvaćena, pokušajte sa boljim osvetljenjem
+                            </div>
+                        </div>
+                    `
+                }
+            };
+            
+            return content[type] || { title: 'Informacije', content: 'Sadržaj nije dostupan.' };
+        }
+
+        // Close modal on outside click
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('infoModal');
+            if (event.target === modal) {
+                closeInfoModal();
+            }
+        });
+
+        // Share functionality
+        function shareResults() {
+            if (navigator.share) {
+                navigator.share({
+                    title: 'EKG Analiza Rezultati',
+                    text: 'Pogledaj moje EKG analiza rezultate',
+                    url: window.location.href
+                });
+            } else {
+                // Fallback for browsers that don't support Web Share API
+                const url = window.location.href;
+                navigator.clipboard.writeText(url).then(() => {
+                    alert('Link je kopiran u clipboard!');
+                });
+            }
+        }
+
+        // Service Worker Registration (for PWA)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/sw.js')
+                    .then((registration) => {
+                        console.log('SW registered: ', registration);
+                    })
+                    .catch((registrationError) => {
+                        console.log('SW registration failed: ', registrationError);
+                    });
+            });
+        }
+
+        // Prevent zoom on double tap (iOS)
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function (event) {
+            const now = (new Date()).getTime();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+    </script>
+</body>
+</html>
