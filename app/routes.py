@@ -2,10 +2,13 @@ from flask import Blueprint, jsonify, request, render_template
 from .analysis.fft import analyze_fft
 from .analysis.ztransform import z_transform_analysis, digital_filter_design
 from .analysis.image_processing import process_ekg_image, preprocess_for_analysis
+from .analysis.improved_image_processing import process_ekg_image_improved, analyze_ekg_rhythm_from_image
 from .analysis.arrhythmia_detection import detect_arrhythmias
 from .analysis.advanced_ekg_analysis import comprehensive_ekg_analysis
 from .analysis.educational_visualization import create_step_by_step_analysis
 from .analysis.wfdb_reader import parse_wfdb_files, validate_wfdb_files, extract_signal_for_analysis, parse_wfdb_files_with_annotations
+from .analysis.advanced_cardiology_analysis import advanced_ekg_analysis
+from .analysis.simple_thesis_viz import create_simple_thesis_visualizations
 from .analysis.signal_to_image import create_ekg_image_from_signal, test_signal_to_image_conversion
 from .analysis.educational_ekg_image import create_educational_ekg_image
 from .analysis.intelligent_signal_segmentation import find_critical_segments
@@ -73,7 +76,17 @@ def complete_ekg_analysis():
             # Proverava da li je slika generisana iz signala (preskače validaciju)
             skip_validation = payload.get("skip_validation", False)
             try:
-                image_result = process_ekg_image(payload["image"], skip_validation=skip_validation)
+                image_result = process_ekg_image_improved(payload["image"], skip_validation=skip_validation)
+                
+                if "error" in image_result:
+                    # Fallback na staru verziju
+                    print("DEBUG: Improved processing failed, trying original...")
+                    image_result = process_ekg_image(payload["image"], skip_validation=skip_validation)
+                    
+                    if "error" in image_result:
+                        print(f"DEBUG: Both processing methods failed: {image_result['error']}")
+                        return jsonify(image_result), 400
+                
                 print(f"DEBUG: Image processing result keys: {list(image_result.keys())}")
                 
                 if "error" in image_result:
@@ -84,8 +97,13 @@ def complete_ekg_analysis():
                 fs = payload.get("fs", 250)
                 print(f"DEBUG: Extracted signal length: {len(signal)}")
                 
-                # Predobrada signala
-                signal, fs = preprocess_for_analysis(signal, fs)
+                # Predobrada signala - koristi iz improved_image_processing
+                from .analysis.improved_image_processing import preprocess_for_analysis as preprocess_improved
+                try:
+                    signal, fs = preprocess_improved(signal, fs)
+                except Exception as e:
+                    print(f"DEBUG: Improved preprocessing failed: {e}, using original")
+                    signal, fs = preprocess_for_analysis(signal, fs)
                 print(f"DEBUG: Preprocessed signal length: {len(signal)}")
                 
             except Exception as e:
@@ -108,15 +126,49 @@ def complete_ekg_analysis():
         # 3. Detekcija aritmija
         results["arrhythmia_detection"] = detect_arrhythmias(signal, fs)
         
-        # 4. Napredna analiza (naučni algoritmi) - ZAKOMENTARISANO
-        # results["advanced_analysis"] = comprehensive_ekg_analysis(signal, fs)
+        # 4. Fokus na Furijeovu i Z-transformaciju (tema rada)
+        # results["advanced_cardiology"] = advanced_ekg_analysis(signal, fs, annotations=None, wfdb_metadata=None)
         
-        # 5. Osnovne informacije
+        # 5. Osnovne informacije + poboljšane image info
+        image_info = {}
+        if "image" in payload:
+            # Ako je signal dobijen iz slike, dodaj image metadata
+            image_info = {
+                "source": "image_analysis",
+                "processing_method": "improved_multi_lead_detection" if hasattr(locals(), 'image_result') and "detected_leads" in locals().get('image_result', {}) else "basic_contour",
+                "detected_leads": locals().get('image_result', {}).get("detected_leads", 1),
+                "estimated_heart_rate_from_image": locals().get('image_result', {}).get("estimated_heart_rate", {})
+            }
+        else:
+            image_info = {
+                "source": "direct_signal",
+                "processing_method": "direct_input"
+            }
+        
         results["signal_info"] = {
             "length": len(signal),
             "duration_seconds": len(signal) / fs,
-            "sampling_frequency": fs
+            "sampling_frequency": fs,
+            **image_info
         }
+        
+        # 5.5. NOVA: Analiza ritma iz slike (pre algoritamske analize)
+        try:
+            results["image_rhythm_analysis"] = analyze_ekg_rhythm_from_image(signal)
+            print(f"DEBUG: Image rhythm analysis: {results['image_rhythm_analysis']['heart_rate_bpm']} bpm")
+        except Exception as e:
+            print(f"DEBUG: Image rhythm analysis failed: {str(e)}")
+            results["image_rhythm_analysis"] = {"error": str(e)}
+        
+        # 6. NOVO: Jednostavne vizuelizacije za master rad
+        try:
+            results["thesis_visualizations"] = create_simple_thesis_visualizations(
+                signal, fs, results
+            )
+            print("DEBUG: Simple thesis visualizations created successfully")
+        except Exception as e:
+            print(f"DEBUG: Simple thesis visualizations failed: {str(e)}")
+            results["thesis_visualizations"] = {"error": f"Vizuelizacije neuspešne: {str(e)}"}
         
         return jsonify(results)
         
@@ -189,8 +241,8 @@ def analyze_raw_signal():
         # 3. Detekcija aritmija
         results["arrhythmia_detection"] = detect_arrhythmias(signal, fs)
         
-        # 4. Napredna analiza (naučni algoritmi) - ZAKOMENTARISANO  
-        # results["advanced_analysis"] = comprehensive_ekg_analysis(signal, fs)
+        # 4. Fokus na Furijeovu i Z-transformaciju (tema rada)
+        # results["advanced_cardiology"] = advanced_ekg_analysis(signal, fs, annotations=None, wfdb_metadata=None)
         
         # 5. Osnovne informacije sa dodatnim metapodacima
         results["signal_info"] = {
@@ -201,6 +253,16 @@ def analyze_raw_signal():
             "filename": filename,
             "import_method": "direct_file_upload"
         }
+        
+        # 6. NOVO: Jednostavne vizuelizacije za master rad (raw signal)
+        try:
+            results["thesis_visualizations"] = create_simple_thesis_visualizations(
+                signal, fs, results
+            )
+            print("DEBUG: Raw signal simple visualizations created successfully")
+        except Exception as e:
+            print(f"DEBUG: Raw signal simple visualizations failed: {str(e)}")
+            results["thesis_visualizations"] = {"error": f"Vizuelizacije neuspešne: {str(e)}"}
         
         return jsonify(results)
         
@@ -288,8 +350,8 @@ def analyze_wfdb_files():
         # 3. Detekcija aritmija
         results["arrhythmia_detection"] = detect_arrhythmias(signal, fs)
         
-        # 4. Napredna analiza - ZAKOMENTARISANO
-        # results["advanced_analysis"] = comprehensive_ekg_analysis(signal, fs)
+        # 4. Fokus na Furijeovu i Z-transformaciju (tema rada)
+        # results["advanced_cardiology"] = advanced_ekg_analysis(signal, fs, annotations=annotations, wfdb_metadata=wfdb_meta)
         
         # 5. Informacije o signalu sa WFDB metapodacima
         results["signal_info"] = {
@@ -322,13 +384,24 @@ def analyze_wfdb_files():
                 "annotation_types": annotations.get('annotation_types', {}),
                 "r_peaks": annotations.get('r_peaks', [])[:20],  # Prvih 20 R-pikova
                 "arrhythmias": annotations.get('arrhythmias', []),
-                "source_file": atr_filename
+                "source_file": atr_filename,
+                "samples": annotations.get('r_peaks', [])  # Dodano za vizuelizacije
             }
             
             # POBOLJŠANO: Koristi annotation R-pikove za bolju analizu aritmija
             if annotations.get('r_peaks'):
                 print(f"DEBUG: Using {len(annotations['r_peaks'])} annotated R-peaks for enhanced arrhythmia detection")
                 # Možete dodati logiku koja koristi tačne R-peak pozicije iz annotations
+        
+        # 8. NOVO: Jednostavne vizuelizacije za master rad (WFDB)
+        try:
+            results["thesis_visualizations"] = create_simple_thesis_visualizations(
+                signal, fs, results
+            )
+            print("DEBUG: WFDB simple visualizations created successfully")
+        except Exception as e:
+            print(f"DEBUG: WFDB simple visualizations failed: {str(e)}")
+            results["thesis_visualizations"] = {"error": f"Vizuelizacije neuspešne: {str(e)}"}
         
         return jsonify(results)
         

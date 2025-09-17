@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="EKG Analiza">
     
-    <title>EKG Analiza - Mobilna Aplikacija</title>
+    <title>EKG Analiza v2.5 - Mobilna Aplikacija</title>
     
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
@@ -31,7 +31,7 @@
     <div class="container">
         <!-- Header -->
         <header class="header">
-            <h1><i class="fas fa-heartbeat"></i> EKG Analiza</h1>
+            <h1><i class="fas fa-heartbeat"></i> EKG Analiza <span style="font-size: 0.4em; color: #666; background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">v2.5</span></h1>
             <p>Analiziraj svoj EKG signal fotografijom</p>
         </header>
 
@@ -299,6 +299,9 @@
                         <i class="fas fa-plus"></i>
                         Nova Analiza
                     </button>
+                    <button id="debugVizBtn" class="btn btn-warning" onclick="window.ekgAnalyzer && window.ekgAnalyzer.debugVisualizations()" style="display:none;">
+                        <i class="fas fa-bug"></i> DEBUG: Test Vizuelizacije
+                    </button>
                     <button id="shareBtn" class="btn btn-secondary" onclick="shareResults()">
                         <i class="fas fa-share-alt"></i>
                         Podeli Rezultate
@@ -351,12 +354,25 @@
                 <span id="successText"></span>
             </div>
 
-            <!-- Medical Disclaimer -->
+            <!-- Medical Disclaimer - TEMPORARILY COMMENTED FOR DEBUG -->
+            <!-- 
             <div class="disclaimer">
                 <div class="disclaimer-title">⚠️ MEDICINSKI DISCLAIMER</div>
                 Ova aplikacija je namenjena isključivo za edukativne svrhe i preliminarnu analizu. 
                 Rezultati NE smeju biti korišćeni za medicinsku dijagnostiku bez konsultacije sa kvalifikovanim lekarom. 
                 U slučaju zdravstvenih problema, obratite se svom lekaru.
+            </div>
+            -->
+            
+            <!-- ADDITIONAL ANALYSIS SECTION -->
+            <div class="disclaimer" style="background: #e8f5e8; border-left: 4px solid #28a745;">
+                <div class="disclaimer-title">📊 DODATNA ANALIZA</div>
+                <button id="additionalAnalysisBtn" class="btn btn-success" onclick="window.ekgAnalyzer && window.ekgAnalyzer.showAdditionalAnalysis()" style="margin: 10px 0; display: block;">
+                    <i class="fas fa-chart-line"></i> Prikaži Vizuelizacije za Master Rad
+                </button>
+                <p style="font-size: 0.9rem; margin: 5px 0;">
+                    Dodatne vizuelizacije signala, FFT spektar i signal processing pipeline.
+                </p>
             </div>
         </main>
     </div>

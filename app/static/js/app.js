@@ -145,6 +145,12 @@ class EKGAnalyzer {
             // Enable analyze button
             document.getElementById('analyzeBtn').disabled = false;
             
+            // Show debug button
+            const debugBtn = document.getElementById('debugVizBtn');
+            if (debugBtn) {
+                debugBtn.style.display = 'inline-block';
+            }
+            
             // Add bounce animation
             previewSection.classList.add('bounce');
             setTimeout(() => {
@@ -273,7 +279,19 @@ class EKGAnalyzer {
         this.analysisData = data;
 
         // Populate structured results
-        this.populateStructuredResults(data);
+        if (data.advanced_cardiology && !data.advanced_cardiology.error) {
+            console.log('✅ Using advanced cardiology analysis');
+            this.populateAdvancedCardiologyResults(data);
+        } else {
+            console.log('⚠️ Using basic structured results');
+            this.populateStructuredResults(data);
+        }
+        
+        // NOVO: Dodaj vizuelizacije za master rad (bez kvarenja postojeće logike)
+        if (data.thesis_visualizations && !data.thesis_visualizations.error) {
+            console.log('📊 Adding thesis visualizations');
+            this.addThesisVisualizations(data.thesis_visualizations);
+        }
 
         // Scroll to results
         resultsSection.scrollIntoView({ behavior: 'smooth' });
@@ -1321,6 +1339,627 @@ class EKGAnalyzer {
                 <div class="arrhythmia-desc"><strong>Vrednost:</strong> ${arr.value}</div>
             </div>
         `).join('');
+    }
+    // NOVO: Napredni kardiološki prikaz rezultata
+    populateAdvancedCardiologyResults(data) {
+        const resultsSection = document.getElementById('resultsSection');
+        const cardiology = data.advanced_cardiology;
+        
+        // Keep the header, but replace the content
+        const existingHeader = resultsSection.querySelector('.raw-signal-header, .wfdb-header');
+        const headerHTML = existingHeader ? existingHeader.outerHTML : '';
+        
+        // Overall health status
+        const overallAssessment = cardiology.arrhythmia_analysis?.overall_assessment || 'Analiza završena';
+        let statusClass = 'status-normal';
+        if (overallAssessment.includes('hitna medicinska')) statusClass = 'status-danger';
+        else if (overallAssessment.includes('konsultacija') || overallAssessment.includes('konsultacija')) statusClass = 'status-warning';
+
+        const advancedHTML = `
+            ${headerHTML}
+            
+            <!-- Overall Health Status -->
+            <div id="healthStatus" class="health-status ${statusClass}">
+                ${overallAssessment}
+            </div>
+
+            <!-- 📁 OPŠTE INFORMACIJE -->
+            ${this.renderGeneralInfo(cardiology.general_info)}
+            
+            <!-- 📍 ANOTACIJE (.atr fajl) -->
+            ${cardiology.annotation_analysis ? this.renderAnnotationAnalysis(cardiology.annotation_analysis) : ''}
+            
+            <!-- 📈 DETEKCIJA R-PIKOVA -->
+            ${this.renderRPeakAnalysis(cardiology.r_peak_analysis)}
+            
+            <!-- 🫀 SRČANI RITAM -->
+            ${this.renderHeartRateAnalysis(cardiology.heart_rate_analysis)}
+            
+            <!-- 📉 HRV ANALIZA -->
+            ${this.renderHRVAnalysis(cardiology.hrv_analysis)}
+            
+            <!-- ⚠️ ARITMIJE -->
+            ${this.renderArrhythmiaAnalysis(cardiology.arrhythmia_analysis)}
+            
+            <!-- 📶 KVALITET SIGNALA -->
+            ${this.renderSignalQuality(cardiology.signal_quality)}
+            
+            <!-- 🔬 FREKVENCIJSKA ANALIZA -->
+            ${this.renderFrequencyAnalysis(cardiology.frequency_analysis)}
+            
+            <!-- 📊 VIZUELIZACIJE -->
+            ${this.renderVisualizations(cardiology.visualizations)}
+            
+            <!-- Action Buttons -->
+            <div class="action-buttons" style="margin-top: 20px;">
+                <button id="newAnalysisBtn" class="btn btn-secondary">
+                    <i class="fas fa-plus"></i> Nova Analiza
+                </button>
+                <button onclick="window.print()" class="btn btn-secondary">
+                    <i class="fas fa-print"></i> Štampaj Izveštaj
+                </button>
+            </div>
+        `;
+
+        resultsSection.innerHTML = advancedHTML;
+    }
+
+    // Render funkcije za napredni prikaz
+    renderGeneralInfo(info) {
+        if (!info) return '';
+        
+        return `
+        <div class="result-card">
+            <div class="result-header">
+                <i class="fas fa-info-circle result-icon" style="color: #3498db;"></i>
+                <h3 class="result-title">📁 Opšte Informacije o Signalu</h3>
+            </div>
+            <div class="result-content">
+                <div class="metric">
+                    <span class="metric-label">Analizirani uzorci:</span>
+                    <span class="metric-value">${info.analyzed_samples?.toLocaleString() || 'N/A'}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Trajanje analize:</span>
+                    <span class="metric-value">${info.analyzed_duration_minutes?.toFixed(1) || 'N/A'} min (${info.analyzed_duration_seconds?.toFixed(1) || 'N/A'}s)</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Frekvencija uzorkovanja:</span>
+                    <span class="metric-value">${info.sampling_frequency || 'N/A'} Hz</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Korišćeni kanali:</span>
+                    <span class="metric-value">${info.channels_used || 'N/A'}</span>
+                </div>
+                ${info.total_original_samples ? `
+                <div class="metric">
+                    <span class="metric-label">Originalni zapis (ukupno):</span>
+                    <span class="metric-value">${info.total_original_samples.toLocaleString()} uzoraka (${info.total_original_duration_minutes?.toFixed(1)} min)</span>
+                </div>
+                <div style="background: #fff3e0; padding: 15px; border-radius: 8px; margin-top: 10px;">
+                    <strong>📝 Segmentacija:</strong> Analiziran je segment od ${info.segment_percentage?.toFixed(1)}% ukupnog zapisa zbog performansi.
+                </div>
+                ` : ''}
+            </div>
+        </div>`;
+    }
+
+    renderAnnotationAnalysis(annotation) {
+        if (!annotation) return '';
+        
+        const typesList = Object.entries(annotation.annotation_types || {})
+            .map(([type, count]) => `<span class="annotation-type">${type}: ${count}</span>`)
+            .join(' ');
+        
+        return `
+        <div class="result-card">
+            <div class="result-header">
+                <i class="fas fa-hospital result-icon" style="color: #e74c3c;"></i>
+                <h3 class="result-title">📍 MIT-BIH Anotacije (.atr fajl)</h3>
+            </div>
+            <div class="result-content">
+                <div class="metric">
+                    <span class="metric-label">Ukupno anotacija:</span>
+                    <span class="metric-value">${annotation.total_annotations || 0}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">R-peak anotacije:</span>
+                    <span class="metric-value">${annotation.r_peak_annotations || 0}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Aritmijske anotacije:</span>
+                    <span class="metric-value">${annotation.arrhythmia_annotations || 0}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Izvor:</span>
+                    <span class="metric-value">${annotation.source_file || 'N/A'}</span>
+                </div>
+                <div style="background: #e8f5e8; padding: 10px; border-radius: 5px; margin-top: 10px;">
+                    <strong>📋 Tipovi anotacija:</strong><br>
+                    ${typesList || 'Nema podataka'}
+                </div>
+            </div>
+        </div>`;
+    }
+
+    renderRPeakAnalysis(rpeak) {
+        if (!rpeak) return '';
+        
+        return `
+        <div class="result-card">
+            <div class="result-header">
+                <i class="fas fa-chart-line result-icon" style="color: #9b59b6;"></i>
+                <h3 class="result-title">📈 Analiza R-pikova</h3>
+            </div>
+            <div class="result-content">
+                <div style="background: #f8f9ff; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <h4 style="margin: 0 0 10px 0;">🔍 Detektovani algoritmom:</h4>
+                    <div class="metric">
+                        <span class="metric-label">Broj R-pikova:</span>
+                        <span class="metric-value">${rpeak.detected_count || 'N/A'}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Metod detekcije:</span>
+                        <span class="metric-value">${rpeak.detection_method || 'N/A'}</span>
+                    </div>
+                </div>
+                
+                ${rpeak.annotated_count ? `
+                <div style="background: #e8f5e8; padding: 15px; border-radius: 8px;">
+                    <h4 style="margin: 0 0 10px 0;">🏥 MIT-BIH annotations:</h4>
+                    <div class="metric">
+                        <span class="metric-label">Anotirani R-pikovi:</span>
+                        <span class="metric-value">${rpeak.annotated_count}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Poklapanje:</span>
+                        <span class="metric-value">${rpeak.matched_peaks || 0} (${rpeak.detection_accuracy_percent?.toFixed(1) || 0}%)</span>
+                    </div>
+                </div>
+                ` : ''}
+            </div>
+        </div>`;
+    }
+
+    renderHeartRateAnalysis(hr) {
+        if (!hr || hr.error) return '';
+        
+        return `
+        <div class="result-card">
+            <div class="result-header">
+                <i class="fas fa-heartbeat result-icon" style="color: #e74c3c;"></i>
+                <h3 class="result-title">🫀 Srčani Ritam</h3>
+            </div>
+            <div class="result-content">
+                <div class="metric">
+                    <span class="metric-label">Prosečna frekvencija:</span>
+                    <span class="metric-value">${hr.average_bpm?.toFixed(1) || 'N/A'} bpm</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Ukupno otkucaja:</span>
+                    <span class="metric-value">${hr.total_beats || 'N/A'}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Prosečan RR interval:</span>
+                    <span class="metric-value">${hr.avg_rr_ms?.toFixed(1) || 'N/A'} ms</span>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    renderHRVAnalysis(hrv) {
+        if (!hrv || hrv.error) return '';
+        
+        return `
+        <div class="result-card">
+            <div class="result-header">
+                <i class="fas fa-chart-area result-icon" style="color: #f39c12;"></i>
+                <h3 class="result-title">📉 HRV (Heart Rate Variability)</h3>
+            </div>
+            <div class="result-content">
+                <div class="metric">
+                    <span class="metric-label">SDRR:</span>
+                    <span class="metric-value">${hrv.sdrr_ms?.toFixed(1) || 'N/A'} ms</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">RMSSD:</span>
+                    <span class="metric-value">${hrv.rmssd_ms?.toFixed(1) || 'N/A'} ms</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">pNN50:</span>
+                    <span class="metric-value">${hrv.pnn50_percent?.toFixed(1) || 'N/A'}%</span>
+                </div>
+                
+                ${hrv.overall_hrv_assessment ? `
+                <div style="background: #e8f5e8; padding: 10px; border-radius: 5px; margin-top: 10px;">
+                    <strong>🏥 Procena:</strong> ${hrv.overall_hrv_assessment}
+                </div>
+                ` : ''}
+            </div>
+        </div>`;
+    }
+
+    renderArrhythmiaAnalysis(arr) {
+        if (!arr) return '';
+        
+        const arrhythmiasList = arr.detected && arr.detected.length > 0 ? 
+            arr.detected.map(arrhythmia => `
+                <div class="arrhythmia-item severity-${arrhythmia.severity}">
+                    <div class="arrhythmia-type">⚠️ ${arrhythmia.type}</div>
+                    <div class="arrhythmia-desc">${arrhythmia.description}</div>
+                    <div class="arrhythmia-desc"><strong>Vrednost:</strong> ${arrhythmia.value}</div>
+                    ${arrhythmia.criteria ? `<div class="arrhythmia-desc"><em>Kriterijum:</em> ${arrhythmia.criteria}</div>` : ''}
+                </div>
+            `).join('') :
+            '<div class="arrhythmia-item severity-low">✅ Nema detektovanih aritmija</div>';
+        
+        return `
+        <div class="result-card">
+            <div class="result-header">
+                <i class="fas fa-exclamation-triangle result-icon" style="color: #e74c3c;"></i>
+                <h3 class="result-title">⚠️ Detekcija Aritmija</h3>
+            </div>
+            <div class="result-content">
+                <div class="metric">
+                    <span class="metric-label">Ukupno detektovano:</span>
+                    <span class="metric-value">${arr.total_count || 0}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Osnova analize:</span>
+                    <span class="metric-value">${arr.analysis_basis || 'RR intervali'}</span>
+                </div>
+                
+                <div style="margin: 15px 0;">
+                    ${arrhythmiasList}
+                </div>
+                
+                ${arr.missed_beats_analysis ? `
+                <div style="background: #fff3e0; padding: 10px; border-radius: 5px; margin-top: 10px;">
+                    <strong>📊 Propušteni otkucaji:</strong> ${arr.missed_beats_analysis.detected_long_intervals} dugih intervala 
+                    (${arr.missed_beats_analysis.percentage_of_intervals?.toFixed(1)}%)
+                </div>
+                ` : ''}
+            </div>
+        </div>`;
+    }
+
+    renderSignalQuality(quality) {
+        if (!quality) return '';
+        
+        return `
+        <div class="result-card">
+            <div class="result-header">
+                <i class="fas fa-signal result-icon" style="color: #27ae60;"></i>
+                <h3 class="result-title">📶 Kvalitet Signala</h3>
+            </div>
+            <div class="result-content">
+                <div class="metric">
+                    <span class="metric-label">SNR:</span>
+                    <span class="metric-value">${quality.snr_db?.toFixed(1) || 'N/A'} dB</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Procena kvaliteta:</span>
+                    <span class="metric-value">${quality.quality_assessment || 'N/A'}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Nivo šuma:</span>
+                    <span class="metric-value">${quality.noise_level || 'N/A'}</span>
+                </div>
+                ${quality.artifacts_detected !== undefined ? `
+                <div class="metric">
+                    <span class="metric-label">Artefakti:</span>
+                    <span class="metric-value">${quality.artifacts_detected} detektovano</span>
+                </div>
+                ` : ''}
+                
+                ${quality.filters_applied ? `
+                <div style="background: #f0f8ff; padding: 10px; border-radius: 5px; margin-top: 10px;">
+                    <strong>🔧 Primenjeni filtri:</strong><br>
+                    ${quality.filters_applied.map(filter => `• ${filter}`).join('<br>')}
+                </div>
+                ` : ''}
+            </div>
+        </div>`;
+    }
+
+    renderFrequencyAnalysis(freq) {
+        if (!freq) return '';
+        
+        return `
+        <div class="result-card">
+            <div class="result-header">
+                <i class="fas fa-wave-square result-icon" style="color: #3498db;"></i>
+                <h3 class="result-title">🔬 Frekvencijska Analiza</h3>
+            </div>
+            <div class="result-content">
+                <div class="metric">
+                    <span class="metric-label">Dominantna frekvencija:</span>
+                    <span class="metric-value">${freq.peak_frequency_hz?.toFixed(2) || 'N/A'} Hz</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Peak amplituda:</span>
+                    <span class="metric-value">${freq.peak_amplitude?.toFixed(4) || 'N/A'}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">DC komponenta:</span>
+                    <span class="metric-value">${freq.dc_component_removed ? '✅ Uklonjena' : '❌ Prisutna'}</span>
+                </div>
+                
+                ${freq.frequency_interpretation ? `
+                <div style="background: #e8f5e8; padding: 10px; border-radius: 5px; margin-top: 10px;">
+                    <strong>💡 Interpretacija:</strong> ${freq.frequency_interpretation}
+                </div>
+                ` : ''}
+            </div>
+        </div>`;
+    }
+
+    renderVisualizations(viz) {
+        if (!viz) return '';
+        
+        return `
+        <div class="result-card">
+            <div class="result-header">
+                <i class="fas fa-chart-bar result-icon" style="color: #9b59b6;"></i>
+                <h3 class="result-title">📊 Vizuelizacije</h3>
+            </div>
+            <div class="result-content">
+                ${viz.signal_with_peaks ? `
+                <div style="margin: 15px 0;">
+                    <h4>EKG Signal sa R-pikovima:</h4>
+                    <img src="data:image/png;base64,${viz.signal_with_peaks}" style="max-width: 100%; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                ` : ''}
+                
+                ${viz.rr_histogram ? `
+                <div style="margin: 15px 0;">
+                    <h4>Histogram RR Intervala:</h4>
+                    <img src="data:image/png;base64,${viz.rr_histogram}" style="max-width: 100%; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                ` : ''}
+                
+                ${viz.heart_rate_trend ? `
+                <div style="margin: 15px 0;">
+                    <h4>Srčana Frekvencija Kroz Vreme:</h4>
+                    <img src="data:image/png;base64,${viz.heart_rate_trend}" style="max-width: 100%; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                ` : ''}
+                
+                ${viz.poincare_plot ? `
+                <div style="margin: 15px 0;">
+                    <h4>Poincaré Dijagram HRV:</h4>
+                    <img src="data:image/png;base64,${viz.poincare_plot}" style="max-width: 100%; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                ` : ''}
+            </div>
+        </div>`;
+    }
+
+    // NOVO: Dodaj vizuelizacije za master rad
+    addThesisVisualizations(visualizations) {
+        const resultsSection = document.getElementById('resultsSection');
+        
+        // Kreiraj sekciju za vizuelizacije ako ne postoji
+        let vizSection = document.getElementById('thesisVisualizationsSection');
+        if (!vizSection) {
+            vizSection = document.createElement('div');
+            vizSection.id = 'thesisVisualizationsSection';
+            vizSection.className = 'main-card';
+            vizSection.style.marginTop = '20px';
+            resultsSection.parentNode.insertBefore(vizSection, resultsSection.nextSibling);
+        }
+
+        let visualizationsHTML = `
+            <h2><i class="fas fa-chart-line"></i> Vizuelizacije za Master Rad</h2>
+            <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <strong>📊 Furijeova i Z-transformacija u analizi biomedicinskih signala</strong><br>
+                Grafici spremni za uključivanje u poglavlje 5 master rada.
+            </div>
+        `;
+
+        // 1. EKG Signal sa R-pikovima
+        if (visualizations.ekg_with_peaks) {
+            visualizationsHTML += `
+                <div class="result-card">
+                    <div class="result-header">
+                        <i class="fas fa-heartbeat result-icon" style="color: #e74c3c;"></i>
+                        <h3 class="result-title">1. EKG Signal sa Detektovanim R-pikovima</h3>
+                    </div>
+                    <div class="result-content">
+                        <p><strong>Opis:</strong> Prikaz originalnog EKG signala sa algoritmski detektovanim R-pikovima (crvene tačke) i MIT-BIH ekspert anotacijama (zeleni trouglovi).</p>
+                        <img src="data:image/png;base64,${visualizations.ekg_with_peaks}" 
+                             style="max-width: 100%; border: 2px solid #ddd; border-radius: 8px; margin: 10px 0;"
+                             alt="EKG signal sa R-pikovima">
+                        <p style="font-size: 0.9rem; color: #666;"><em>Slika 5.1: EKG signal sa detektovanim R-pikovima i poređenjem sa MIT-BIH anotacijama</em></p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 2. FFT Spektar
+        if (visualizations.fft_spectrum) {
+            visualizationsHTML += `
+                <div class="result-card">
+                    <div class="result-header">
+                        <i class="fas fa-wave-square result-icon" style="color: #3498db;"></i>
+                        <h3 class="result-title">2. FFT Spektar (Furijeova Transformacija)</h3>
+                    </div>
+                    <div class="result-content">
+                        <p><strong>Opis:</strong> Frekvencijski spektar EKG signala dobijen Furijeovom transformacijom. Dominantna frekvencija označena crvenom linijom odgovara srčanoj frekvenciji.</p>
+                        <img src="data:image/png;base64,${visualizations.fft_spectrum}" 
+                             style="max-width: 100%; border: 2px solid #ddd; border-radius: 8px; margin: 10px 0;"
+                             alt="FFT spektar">
+                        <p style="font-size: 0.9rem; color: #666;"><em>Slika 5.2: FFT spektar EKG signala sa označenom dominantnom frekvencijom</em></p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 3. Poređenje sa MIT-BIH
+        if (visualizations.mitbih_comparison) {
+            visualizationsHTML += `
+                <div class="result-card">
+                    <div class="result-header">
+                        <i class="fas fa-balance-scale result-icon" style="color: #9b59b6;"></i>
+                        <h3 class="result-title">3. Poređenje sa MIT-BIH Anotacijama</h3>
+                    </div>
+                    <div class="result-content">
+                        <p><strong>Opis:</strong> Statistička analiza performansi algoritma u odnosu na MIT-BIH ekspert anotacije. Prikazane su greške (false positives/negatives) i metrike precision/recall.</p>
+                        <img src="data:image/png;base64,${visualizations.mitbih_comparison}" 
+                             style="max-width: 100%; border: 2px solid #ddd; border-radius: 8px; margin: 10px 0;"
+                             alt="MIT-BIH poređenje">
+                        <p style="font-size: 0.9rem; color: #666;"><em>Slika 5.3: Validacija algoritma kroz poređenje sa MIT-BIH golden standard anotacijama</em></p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 4. Signal Processing Pipeline
+        if (visualizations.processing_steps) {
+            visualizationsHTML += `
+                <div class="result-card">
+                    <div class="result-header">
+                        <i class="fas fa-cogs result-icon" style="color: #f39c12;"></i>
+                        <h3 class="result-title">4. Signal Processing Pipeline (Z-transformacija)</h3>
+                    </div>
+                    <div class="result-content">
+                        <p><strong>Opis:</strong> Koraci obrade signala korišćenjem Z-transformacije: originalni signal, bandpass filtriranje (0.5-40 Hz), baseline removal i filter response u Z-domenu.</p>
+                        <img src="data:image/png;base64,${visualizations.processing_steps}" 
+                             style="max-width: 100%; border: 2px solid #ddd; border-radius: 8px; margin: 10px 0;"
+                             alt="Signal processing pipeline">
+                        <p style="font-size: 0.9rem; color: #666;"><em>Slika 5.4: Pipeline obrade biomedicinskog signala korišćenjem Z-transformacije</em></p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Dugme za export
+        visualizationsHTML += `
+            <div class="action-buttons" style="margin-top: 20px; text-align: center;">
+                <button id="exportThesisReport" class="btn btn-primary" style="margin: 5px;">
+                    <i class="fas fa-file-pdf"></i> Export Report za Master Rad
+                </button>
+                <button onclick="window.print()" class="btn btn-secondary" style="margin: 5px;">
+                    <i class="fas fa-print"></i> Štampaj Vizuelizacije
+                </button>
+            </div>
+        `;
+
+        vizSection.innerHTML = visualizationsHTML;
+        
+        // Add event listener for export
+        const exportBtn = document.getElementById('exportThesisReport');
+        if (exportBtn) {
+            exportBtn.onclick = () => this.exportThesisReport();
+        }
+
+        vizSection.style.display = 'block';
+        console.log('📊 Thesis visualizations added to page');
+    }
+
+    exportThesisReport() {
+        // Generate report data
+        const reportData = {
+            timestamp: new Date().toLocaleString('sr'),
+            signal_info: this.analysisData?.signal_info || {},
+            analysis_results: {
+                heart_rate: this.analysisData?.arrhythmia_detection?.heart_rate || {},
+                arrhythmias: this.analysisData?.arrhythmia_detection?.arrhythmias || {},
+                fft_analysis: this.analysisData?.fft_analysis || {},
+                signal_quality: this.analysisData?.arrhythmia_detection?.signal_quality || {}
+            }
+        };
+
+        // Create downloadable HTML report
+        const reportHTML = this.generateHTMLReport(reportData);
+        
+        // Download as HTML file
+        const blob = new Blob([reportHTML], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `EKG_Analiza_Master_Rad_${new Date().toISOString().slice(0,10)}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        this.showSuccess('📄 Report za master rad je preuzet!');
+    }
+
+    // Show additional analysis
+    showAdditionalAnalysis() {
+        console.log('🐛 DEBUG: Testing visualizations...');
+        console.log('Analysis data:', this.analysisData);
+        
+        if (this.analysisData && this.analysisData.thesis_visualizations) {
+            console.log('✅ thesis_visualizations postoje:', this.analysisData.thesis_visualizations);
+            console.log('Keys:', Object.keys(this.analysisData.thesis_visualizations));
+            
+            if (this.analysisData.thesis_visualizations.error) {
+                console.log('❌ Error u vizuelizacijama:', this.analysisData.thesis_visualizations.error);
+                alert('Error: ' + this.analysisData.thesis_visualizations.error);
+            } else {
+                console.log('🎯 Pokušavam da dodam vizuelizacije...');
+                this.addThesisVisualizations(this.analysisData.thesis_visualizations);
+                alert('✅ Vizuelizacije dodane! Skroluj dole da ih vidiš.');
+            }
+        } else {
+            console.log('❌ Nema thesis_visualizations u analysis data');
+            alert('❌ Nema thesis_visualizations podataka. Backend možda ne generiše vizuelizacije.');
+        }
+    }
+
+    generateHTMLReport(data) {
+        return `
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+    <meta charset="UTF-8">
+    <title>EKG Analiza - Master Rad Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+        h1, h2 { color: #2c3e50; }
+        .summary { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .metric { margin: 10px 0; }
+        .metric-label { font-weight: bold; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>📊 EKG Analiza - Master Rad Report</h1>
+    <p><strong>Tema:</strong> Primena Furijeove i Z-transformacije u analizi biomedicinskih signala</p>
+    <p><strong>Datum analize:</strong> ${data.timestamp}</p>
+    
+    <div class="summary">
+        <h2>Opšti Podaci Signala</h2>
+        <div class="metric"><span class="metric-label">Broj uzoraka:</span> ${data.signal_info.length?.toLocaleString() || 'N/A'}</div>
+        <div class="metric"><span class="metric-label">Trajanje:</span> ${data.signal_info.duration_seconds?.toFixed(1) || 'N/A'}s</div>
+        <div class="metric"><span class="metric-label">Frekvencija uzorkovanja:</span> ${data.signal_info.sampling_frequency || 'N/A'} Hz</div>
+        <div class="metric"><span class="metric-label">Izvor:</span> ${data.signal_info.source || 'N/A'}</div>
+    </div>
+
+    <h2>Rezultati Analize</h2>
+    <table>
+        <tr><th>Parametar</th><th>Vrednost</th><th>Interpretacija</th></tr>
+        <tr><td>Prosečna frekvencija</td><td>${data.analysis_results.heart_rate.average_bpm?.toFixed(1) || 'N/A'} bpm</td><td>Srčana frekvencija</td></tr>
+        <tr><td>Broj R-pikova</td><td>${data.analysis_results.heart_rate.rr_count || 'N/A'}</td><td>Detektovani otkucaji</td></tr>
+        <tr><td>HRV</td><td>${data.analysis_results.heart_rate.heart_rate_variability?.toFixed(1) || 'N/A'} ms</td><td>Varijabilnost ritma</td></tr>
+        <tr><td>SNR</td><td>${data.analysis_results.signal_quality.snr_db?.toFixed(1) || 'N/A'} dB</td><td>Kvalitet signala</td></tr>
+        <tr><td>Dominantna frekvencija</td><td>${data.analysis_results.fft_analysis.peak_frequency_hz?.toFixed(2) || 'N/A'} Hz</td><td>FFT analiza</td></tr>
+    </table>
+
+    <h2>Zaključak</h2>
+    <p>Analiza je uspešno demonstrirala primenu Furijeove i Z-transformacije u obradi biomedicinskih signala. 
+    Algoritmi za detekciju R-pikova i frekvencijsku analizu pokazali su satisfactorne rezultate.</p>
+    
+    <footer style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ccc; font-size: 0.9rem; color: #666;">
+        Generisan automatski pomoću EKG analize aplikacije - Master rad "Primena Furijeove i Z-transformacije u analizi biomedicinskih signala"
+    </footer>
+</body>
+</html>`;
     }
 }
 
