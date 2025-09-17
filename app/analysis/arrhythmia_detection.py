@@ -33,10 +33,12 @@ def detect_arrhythmias(ekg_signal, fs=250):
         
         return {
             "r_peaks": r_peaks.tolist(),
+            "r_peaks_count": int(len(r_peaks)),  # DODATO: Eksplicitno brojanje
             "heart_rate": heart_rate_analysis,
             "arrhythmias": arrhythmia_results,
             "signal_quality": assess_signal_quality(filtered_signal),
-            "total_duration_seconds": len(signal_array) / fs
+            "total_duration_seconds": len(signal_array) / fs,
+            "detection_method": "signal_analysis"  # DODATO: Označava da su R-pikovi detektovani iz signala
         }
         
     except Exception as e:
