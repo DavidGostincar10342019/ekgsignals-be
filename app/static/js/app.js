@@ -313,6 +313,22 @@ class EKGAnalyzer {
         document.getElementById('maxBPM').textContent = `${heartRate.max_bpm.toFixed(1)} bpm`;
         document.getElementById('hrv').textContent = `${heartRate.heart_rate_variability.toFixed(1)} ms`;
         document.getElementById('rPeaks').textContent = heartRate.rr_count || 0;
+        
+        // NOVO: QRS širina ako postoji
+        const qrsAnalysis = this.analysisData?.arrhythmia_detection?.qrs_analysis;
+        if (qrsAnalysis && !qrsAnalysis.error) {
+            // Dodaj QRS info u postojeći prikaz
+            const hrvElement = document.getElementById('hrv');
+            if (hrvElement && hrvElement.parentNode) {
+                const qrsInfo = document.createElement('div');
+                qrsInfo.className = 'metric';
+                qrsInfo.innerHTML = `
+                    <span class="metric-label">QRS širina:</span>
+                    <span class="metric-value">${qrsAnalysis.mean_width_ms.toFixed(1)} ms (${qrsAnalysis.classification})</span>
+                `;
+                hrvElement.parentNode.appendChild(qrsInfo);
+            }
+        }
     }
 
     populateArrhythmias(arrhythmias) {
@@ -337,6 +353,31 @@ class EKGAnalyzer {
 
         document.getElementById('peakFreq').textContent = `${fftData.peak_frequency_hz.toFixed(2)} Hz`;
         document.getElementById('peakAmp').textContent = fftData.peak_amplitude.toFixed(4);
+        
+        // NOVO: Sine Wave analiza u FFT sekciji
+        const sineWaveData = fftData.sine_wave_analysis;
+        if (sineWaveData && !sineWaveData.error) {
+            const fftContainer = document.getElementById('peakAmp').parentNode.parentNode;
+            if (fftContainer) {
+                const sineWaveInfo = document.createElement('div');
+                sineWaveInfo.className = 'metric';
+                sineWaveInfo.innerHTML = `
+                    <span class="metric-label">Sinusoidalnost:</span>
+                    <span class="metric-value">${sineWaveData.spectral_purity_percent.toFixed(1)}% (${sineWaveData.signal_classification})</span>
+                `;
+                fftContainer.appendChild(sineWaveInfo);
+                
+                if (sineWaveData.detected_harmonics.length > 0) {
+                    const harmonicsInfo = document.createElement('div');
+                    harmonicsInfo.className = 'metric';
+                    harmonicsInfo.innerHTML = `
+                        <span class="metric-label">Harmonici:</span>
+                        <span class="metric-value">${sineWaveData.total_harmonics_count} detektovano, THD: ${sineWaveData.thd_percent.toFixed(1)}%</span>
+                    `;
+                    fftContainer.appendChild(harmonicsInfo);
+                }
+            }
+        }
     }
 
     populateSignalQuality(quality) {

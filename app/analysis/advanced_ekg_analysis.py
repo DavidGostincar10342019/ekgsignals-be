@@ -20,18 +20,21 @@ import matplotlib.pyplot as plt
 import io
 import base64
 
-def spatial_filling_index(ekg_signal):
+def spatial_filling_index(ekg_signal, fs=250):
     """
-    Spatial Filling Index (SFI) prema Faust et al. (2004)
+    Spatial Filling Index (SFI) prema Faust et al. (2004) - ISPRAVLJENA VERZIJA
     
     SFI = log(N) / log(L/a)
     gde je:
     N - broj tačaka signala
-    L - ukupna dužina putanje
+    L - ukupna dužina putanje u vremensko-amplitudnom prostoru
     a - prosečna amplituda
+    
+    KLJUČNA ISPRAVKA: Uključuje pravi vremenski korak (dt = 1/fs)
     
     Args:
         ekg_signal: 1D numpy array EKG signala
+        fs: Frekvencija uzorkovanja (Hz) - default 250 Hz za EKG
     
     Returns:
         dict: SFI vrednost i komponente
@@ -39,27 +42,51 @@ def spatial_filling_index(ekg_signal):
     signal_array = np.array(ekg_signal, dtype=float)
     N = len(signal_array)
     
-    # Kalkulacija ukupne dužine putanje (L)
-    # L = suma euklidskih rastojanja između uzastopnih tačaka
+    if N <= 1:
+        return {
+            "spatial_filling_index": 0.0,
+            "total_path_length": 0.0,
+            "average_amplitude": 0.0,
+            "signal_points": N,
+            "sampling_frequency": fs,
+            "time_step": 1.0/fs if fs > 0 else 0,
+            "formula": "SFI = log(N) / log(L/a), L = sum(sqrt(dt² + dA²))",
+            "interpretation": "Signal prekratak za SFI analizu",
+            "error": "Nedovoljno tačaka za SFI kalkulaciju"
+        }
+    
+    # KLJUČNA ISPRAVKA: Uključiti vremenski korak
+    dt = 1.0 / fs if fs > 0 else 1.0
     diff_signal = np.diff(signal_array)
-    L = np.sum(np.sqrt(1 + diff_signal**2))  # sqrt(dx² + dy²) gde je dx=1
+    
+    # Kalkulacija ukupne dužine putanje (L) u vremensko-amplitudnom prostoru
+    # L = suma euklidskih rastojanja: sqrt(dt² + dA²)
+    L = np.sum(np.sqrt(dt**2 + diff_signal**2))
     
     # Prosečna amplituda
     a = np.mean(np.abs(signal_array))
     
-    # Spatial Filling Index
-    if L > 0 and a > 0:
-        sfi = np.log(N) / np.log(L/a)
+    # Spatial Filling Index sa numeričkom zaštitom
+    if L > 1e-15 and a > 1e-15:  # Numerička zaštita
+        ratio = L / a
+        if ratio > 1:  # log argument mora biti > 1
+            sfi = np.log(N) / np.log(ratio)
+        else:
+            sfi = 0.0  # Degenerated case
     else:
-        sfi = 0
+        sfi = 0.0
     
     return {
         "spatial_filling_index": float(sfi),
         "total_path_length": float(L),
         "average_amplitude": float(a),
         "signal_points": int(N),
-        "formula": "SFI = log(N) / log(L/a)",
-        "interpretation": get_sfi_interpretation(sfi)
+        "sampling_frequency": fs,
+        "time_step": dt,
+        "formula": "SFI = log(N) / log(L/a), L = sum(sqrt(dt² + dA²))",
+        "interpretation": get_sfi_interpretation(sfi),
+        "corrected_version": True,
+        "numerical_stability": "Enhanced with dt inclusion and edge case protection"
     }
 
 def get_sfi_interpretation(sfi):

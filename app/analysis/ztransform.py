@@ -73,35 +73,82 @@ def z_transform_analysis(digital_signal, fs=250):
 
 def estimate_ar_coefficients(signal_data, order):
     """
-    Procena AR koeficijenata koristeći Yule-Walker metodu
+    Procena AR koeficijenata koristeći Yule-Walker metodu - POBOLJŠANA VERZIJA
+    
+    Dodane zaštite za numeričku stabilnost:
+    - Provjera konstantnog signala
+    - Zaštićena normalizacija autokorelacije
+    - Regularizacija Toeplitz matrice
+    - Graceful fallback za problematične slučajeve
     """
-    # Normalizacija signala
+    # Konverzija u numpy array i normalizacija
+    signal_data = np.array(signal_data, dtype=float)
+    
+    if len(signal_data) == 0:
+        return np.array([0.1] * max(1, order))
+    
+    # Uklanjanje srednje vrednosti
     signal_data = signal_data - np.mean(signal_data)
+    
+    # NUMERIČKA ZAŠTITA: Provjera da signal nije konstanta
+    signal_std = np.std(signal_data)
+    if signal_std < 1e-12:
+        # Signal je praktično konstanta - vrati default koeficijente
+        return np.array([0.1] * max(1, order))
     
     # Autokorelacijska funkcija
     autocorr = np.correlate(signal_data, signal_data, mode='full')
     autocorr = autocorr[len(autocorr)//2:]
-    autocorr = autocorr / autocorr[0]  # Normalizacija
     
-    # Yule-Walker jednačine
+    # POBOLJŠANA NORMALIZACIJA: Zaštićena od deljenja nulom
+    if len(autocorr) > 0 and abs(autocorr[0]) > 1e-12:
+        autocorr = autocorr / autocorr[0]
+    else:
+        # Autokorelacija je problematična - vrati default
+        return np.array([0.1] * max(1, order))
+    
+    # Adaptivni red modela
     if len(autocorr) <= order:
-        order = len(autocorr) - 1
+        order = max(1, len(autocorr) - 1)
     
     if order <= 0:
-        return np.array([0.1])  # Default vrednost
+        return np.array([0.1])
     
-    # Kreiranje Toeplitz matrice
-    R = np.array([autocorr[abs(i-j)] for i in range(order) for j in range(order)]).reshape(order, order)
-    r = autocorr[1:order+1]
-    
+    # Kreiranje Toeplitz matrice sa zaštitom
     try:
-        # Rešavanje Yule-Walker jednačina
-        ar_coeffs = np.linalg.solve(R, r)
+        R = np.array([autocorr[abs(i-j)] for i in range(order) for j in range(order)]).reshape(order, order)
+        r = autocorr[1:order+1]
+        
+        # NUMERIČKA STABILNOST: Regularizacija matrice
+        # Dodaj malu vrednost na dijagonalu da spreči singularnost
+        regularization = 1e-10 * np.eye(order)
+        R_reg = R + regularization
+        
+        # Provjera kondicioniranosti matrice
+        if np.linalg.cond(R_reg) > 1e12:
+            # Matrica je loše kondicionirana - koristi pseudoinverz
+            ar_coeffs = np.linalg.pinv(R_reg) @ r
+        else:
+            # Pokušaj standardno rešavanje
+            ar_coeffs = np.linalg.solve(R_reg, r)
+            
+        # VALIDACIJA: Provjeri da su koeficijenti razumni
+        if np.any(np.isnan(ar_coeffs)) or np.any(np.isinf(ar_coeffs)):
+            # NaN ili Inf vrednosti - vrati default
+            ar_coeffs = np.array([0.1] * order)
+        elif np.any(np.abs(ar_coeffs) > 10):
+            # Previsoki koeficijenti - mogući numerički problem
+            ar_coeffs = ar_coeffs / (1 + np.max(np.abs(ar_coeffs)))
+            
         return ar_coeffs
-    except np.linalg.LinAlgError:
-        # Ako matrica nije invertibilna, koristi pseudoinverz
-        ar_coeffs = np.linalg.pinv(R) @ r
-        return ar_coeffs
+        
+    except (np.linalg.LinAlgError, ValueError) as e:
+        # Bilo koji numerički problem - vrati sigurne default vrednosti
+        return np.array([0.1] * order)
+    except Exception as e:
+        # Neočekivana greška - debug info i fallback
+        print(f"Warning: Unexpected error in AR estimation: {e}")
+        return np.array([0.1] * order)
 
 def analyze_stability(poles):
     """
