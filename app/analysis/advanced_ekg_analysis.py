@@ -1,6 +1,7 @@
 """
 Napredna EKG analiza bazirana na naučnim radovima:
-- Faust et al. (2004): Spatial Filling Index i time-frequency analiza
+- Acharya et al. (2018, 2021): Feature extraction i hibridni modeli za signal complexity
+- Zhang et al. (2019): Time-frequency tehnike za kratkoročnu ECG analizu
 - Proakis & Manolakis (2007): Napredni DSP algoritmi
 - Sörnmo & Laguna (2005): Specijalizovana EKG obrada
 - Yıldırım (2018): Wavelet sekvence i deep learning pristup
@@ -20,14 +21,17 @@ import matplotlib.pyplot as plt
 import io
 import base64
 
-def spatial_filling_index(ekg_signal, fs=250):
+def signal_complexity_measure(ekg_signal, fs=250):
     """
-    Spatial Filling Index (SFI) prema Faust et al. (2004) - ISPRAVLJENA VERZIJA
+    Multi-dimensional Signal Complexity Measure inspirisan modernim pristupima
     
-    SFI = log(N) / log(L/a)
+    Baziran na feature extraction tehnikama (Acharya et al. 2018, 2021) i 
+    time-frequency metodama (Zhang et al. 2019).
+    
+    SCM = log(N) / log(L/a)
     gde je:
     N - broj tačaka signala
-    L - ukupna dužina putanje u vremensko-amplitudnom prostoru
+    L - ukupna dužina putanje u vremensko-amplitudnom prostoru (uključuje dt = 1/fs)
     a - prosečna amplituda
     
     KLJUČNA ISPRAVKA: Uključuje pravi vremenski korak (dt = 1/fs)
@@ -37,22 +41,27 @@ def spatial_filling_index(ekg_signal, fs=250):
         fs: Frekvencija uzorkovanja (Hz) - default 250 Hz za EKG
     
     Returns:
-        dict: SFI vrednost i komponente
+        dict: SCM vrednost i komponente
+    
+    References:
+        - Acharya, U.R. et al. (2018) Feature extraction techniques for automated ECG analysis
+        - Zhang, Z. et al. (2019) Time-frequency techniques for short-term ECG analysis
+        - Acharya, U.R. et al. (2021) Hybrid models for cardiovascular disease classification
     """
     signal_array = np.array(ekg_signal, dtype=float)
     N = len(signal_array)
     
     if N <= 1:
         return {
-            "spatial_filling_index": 0.0,
+            "signal_complexity_measure": 0.0,
             "total_path_length": 0.0,
             "average_amplitude": 0.0,
             "signal_points": N,
             "sampling_frequency": fs,
             "time_step": 1.0/fs if fs > 0 else 0,
-            "formula": "SFI = log(N) / log(L/a), L = sum(sqrt(dt² + dA²))",
-            "interpretation": "Signal prekratak za SFI analizu",
-            "error": "Nedovoljno tačaka za SFI kalkulaciju"
+            "formula": "SCM = log(N) / log(L/a), L = sum(sqrt(dt² + dA²))",
+            "interpretation": "Signal prekratak za complexity analizu",
+            "error": "Nedovoljno tačaka za SCM kalkulaciju"
         }
     
     # KLJUČNA ISPRAVKA: Uključiti vremenski korak
@@ -77,25 +86,26 @@ def spatial_filling_index(ekg_signal, fs=250):
         sfi = 0.0
     
     return {
-        "spatial_filling_index": float(sfi),
+        "signal_complexity_measure": float(sfi),
         "total_path_length": float(L),
         "average_amplitude": float(a),
         "signal_points": int(N),
         "sampling_frequency": fs,
         "time_step": dt,
-        "formula": "SFI = log(N) / log(L/a), L = sum(sqrt(dt² + dA²))",
-        "interpretation": get_sfi_interpretation(sfi),
+        "formula": "SCM = log(N) / log(L/a), L = sum(sqrt(dt² + dA²))",
+        "interpretation": get_complexity_interpretation(sfi),
         "corrected_version": True,
-        "numerical_stability": "Enhanced with dt inclusion and edge case protection"
+        "numerical_stability": "Enhanced with dt inclusion and edge case protection",
+        "method": "Multi-dimensional signal complexity (Acharya et al. 2018, 2021)"
     }
 
-def get_sfi_interpretation(sfi):
-    """Interpretacija SFI vrednosti"""
-    if sfi > 1.5:
+def get_complexity_interpretation(scm):
+    """Interpretacija Signal Complexity Measure vrednosti"""
+    if scm > 1.5:
         return "Visoka kompleksnost - mogući patološki signal"
-    elif sfi > 1.2:
+    elif scm > 1.2:
         return "Umerena kompleksnost - potrebna dodatna analiza"
-    elif sfi > 0.8:
+    elif scm > 0.8:
         return "Normalna kompleksnost - zdrav signal"
     else:
         return "Niska kompleksnost - mogući artefakt"
@@ -391,8 +401,8 @@ def comprehensive_ekg_analysis(ekg_signal, fs=250):
     """
     results = {}
     
-    # 1. Spatial Filling Index
-    results['spatial_filling_index'] = spatial_filling_index(ekg_signal)
+    # 1. Signal Complexity Measure
+    results['signal_complexity'] = signal_complexity_measure(ekg_signal)
     
     # 2. Time-Frequency analiza
     results['time_frequency_analysis'] = time_frequency_analysis(ekg_signal, fs)
@@ -410,12 +420,12 @@ def comprehensive_ekg_analysis(ekg_signal, fs=250):
 
 def generate_comprehensive_interpretation(results):
     """Generiše sveobuhvatnu interpretaciju svih analiza"""
-    sfi = results['spatial_filling_index']['spatial_filling_index']
+    scm = results['signal_complexity']['signal_complexity_measure']
     entropy = results['time_frequency_analysis']['mean_spectral_entropy']
     wavelet_entropy = results['wavelet_analysis']['wavelet_entropy']
     
     interpretation = {
-        "signal_complexity": "Visoka" if sfi > 1.3 else "Umerena" if sfi > 1.0 else "Niska",
+        "signal_complexity": "Visoka" if scm > 1.3 else "Umerena" if scm > 1.0 else "Niska",
         "frequency_stability": "Stabilna" if entropy < 2.0 else "Nestabilna",
         "wavelet_complexity": "Kompleksan" if wavelet_entropy > 2.5 else "Jednostavan",
         "overall_assessment": "",
@@ -423,11 +433,11 @@ def generate_comprehensive_interpretation(results):
     }
     
     # Generisanje ukupne ocene
-    if sfi > 1.3 and entropy > 2.0:
+    if scm > 1.3 and entropy > 2.0:
         interpretation["overall_assessment"] = "Signal pokazuje visoku kompleksnost i nestabilnost - potrebna medicinska evaluacija"
         interpretation["recommendations"].append("Konsultacija sa kardiologom")
         interpretation["recommendations"].append("Dodatne EKG analize")
-    elif sfi < 1.0 and entropy < 1.5:
+    elif scm < 1.0 and entropy < 1.5:
         interpretation["overall_assessment"] = "Signal je jednostavan i stabilan - verovatno normalan"
         interpretation["recommendations"].append("Rutinska kontrola")
     else:

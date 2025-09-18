@@ -1,4 +1,44 @@
 from flask import Blueprint, jsonify, request, render_template
+import numpy as np
+
+def convert_numpy_to_json_serializable(obj):
+    """Recursively converts NumPy types to JSON-serializable Python types"""
+    import math
+    
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        val = float(obj)
+        # Handle Infinity and NaN
+        if math.isnan(val):
+            return None  # Convert NaN to null
+        elif math.isinf(val):
+            return None  # Convert Infinity to null
+        else:
+            return val
+    elif isinstance(obj, (float, int)):
+        # Handle regular Python float/int that might be inf/nan
+        if isinstance(obj, float):
+            if math.isnan(obj):
+                return None
+            elif math.isinf(obj):
+                return None
+        return obj
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_to_json_serializable(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_to_json_serializable(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return tuple(convert_numpy_to_json_serializable(item) for item in obj)
+    else:
+        return obj
+
+def safe_jsonify(data):
+    """Safe jsonify that converts NumPy types first"""
+    converted_data = convert_numpy_to_json_serializable(data)
+    return jsonify(converted_data)
 from .analysis.fft import analyze_fft
 from .analysis.ztransform import z_transform_analysis, digital_filter_design
 from .analysis.image_processing import process_ekg_image, preprocess_for_analysis
@@ -170,7 +210,7 @@ def complete_ekg_analysis():
             print(f"DEBUG: Simple thesis visualizations failed: {str(e)}")
             results["thesis_visualizations"] = {"error": f"Vizuelizacije neuspešne: {str(e)}"}
         
-        return jsonify(results)
+        return safe_jsonify(results)
         
     except Exception as e:
         return jsonify({"error": f"Greška pri kompletnoj analizi: {str(e)}"}), 500
@@ -264,7 +304,7 @@ def analyze_raw_signal():
             print(f"DEBUG: Raw signal simple visualizations failed: {str(e)}")
             results["thesis_visualizations"] = {"error": f"Vizuelizacije neuspešne: {str(e)}"}
         
-        return jsonify(results)
+        return safe_jsonify(results)
         
     except Exception as e:
         print(f"DEBUG: Error in raw signal analysis: {str(e)}")
@@ -403,7 +443,7 @@ def analyze_wfdb_files():
             print(f"DEBUG: WFDB simple visualizations failed: {str(e)}")
             results["thesis_visualizations"] = {"error": f"Vizuelizacije neuspešne: {str(e)}"}
         
-        return jsonify(results)
+        return safe_jsonify(results)
         
     except Exception as e:
         print(f"DEBUG: Error in WFDB analysis: {str(e)}")
