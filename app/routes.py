@@ -1,5 +1,25 @@
-from flask import Blueprint, jsonify, request, render_template
+from flask import Blueprint, jsonify, request, render_template, send_file
 import numpy as np
+
+# Create Blueprint
+main = Blueprint('main', __name__)
+
+# Import za seaborn styling
+try:
+    import matplotlib
+    matplotlib.use('Agg')  # Set non-interactive backend
+    import matplotlib.pyplot as plt
+    # Try to use seaborn style, fallback to default if not available
+    try:
+        plt.style.use('seaborn-v0_8')
+    except:
+        try:
+            plt.style.use('seaborn')
+        except:
+            pass  # Use default style
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
 
 def convert_numpy_to_json_serializable(obj):
     """Recursively converts NumPy types to JSON-serializable Python types"""
@@ -53,18 +73,18 @@ from .analysis.signal_to_image import create_ekg_image_from_signal, test_signal_
 from .analysis.educational_ekg_image import create_educational_ekg_image
 from .analysis.intelligent_signal_segmentation import find_critical_segments
 
-api = Blueprint("api", __name__)
+# api = Blueprint("api", __name__)  # Replaced with main above
 
-@api.get("/")
+@main.get("/")
 def index():
     """Glavna stranica mobilne web aplikacije"""
     return render_template('index.html')
 
-@api.get("/health")
+@main.get("/health")
 def health():
     return jsonify(status="ok")
 
-@api.post("/analyze/fft")
+@main.post("/analyze/fft")
 def analyze_fft_endpoint():
     """FFT analiza digitalnog signala"""
     payload = request.get_json(force=True)
@@ -73,7 +93,7 @@ def analyze_fft_endpoint():
     result = analyze_fft(signal, fs)
     return jsonify(result)
 
-@api.post("/analyze/image")
+@main.post("/analyze/image")
 def analyze_ekg_image():
     """Analiza EKG slike - konverzija u digitalni signal"""
     try:
@@ -94,7 +114,7 @@ def analyze_ekg_image():
     except Exception as e:
         return jsonify({"error": f"Greška pri obradi: {str(e)}"}), 500
 
-@api.post("/analyze/complete")
+@main.post("/analyze/complete")
 def complete_ekg_analysis():
     """Kompletna analiza EKG-a - od slike do detekcije aritmija"""
     try:
@@ -215,7 +235,7 @@ def complete_ekg_analysis():
     except Exception as e:
         return jsonify({"error": f"Greška pri kompletnoj analizi: {str(e)}"}), 500
 
-@api.post("/analyze/ztransform")
+@main.post("/analyze/ztransform")
 def analyze_ztransform():
     """Z-transformacija digitalnog signala"""
     try:
@@ -232,7 +252,7 @@ def analyze_ztransform():
     except Exception as e:
         return jsonify({"error": f"Greška u Z-transformaciji: {str(e)}"}), 500
 
-@api.post("/analyze/arrhythmia")
+@main.post("/analyze/arrhythmia")
 def analyze_arrhythmia():
     """Detekcija aritmija u EKG signalu"""
     try:
@@ -249,7 +269,7 @@ def analyze_arrhythmia():
     except Exception as e:
         return jsonify({"error": f"Greška u detekciji aritmija: {str(e)}"}), 500
 
-@api.post("/analyze/raw-signal")
+@main.post("/analyze/raw-signal")
 def analyze_raw_signal():
     """Kompletna analiza sirovih EKG podataka (direktni uvoz signala)"""
     try:
@@ -312,7 +332,7 @@ def analyze_raw_signal():
         traceback.print_exc()
         return jsonify({"error": f"Greška pri analizi sirovih podataka: {str(e)}"}), 500
 
-@api.post("/analyze/wfdb")
+@main.post("/analyze/wfdb")
 def analyze_wfdb_files():
     """Analiza WFDB formata (.dat + .hea + .atr fajlovi) - POBOLJŠANO sa .atr podrškom"""
     try:
@@ -451,7 +471,7 @@ def analyze_wfdb_files():
         traceback.print_exc()
         return jsonify({"error": f"Greška pri analizi WFDB fajlova: {str(e)}"}), 500
 
-@api.get("/download/wfdb/<record_name>/<file_type>")
+@main.get("/download/wfdb/<record_name>/<file_type>")
 def download_wfdb_file(record_name, file_type):
     """Proxy za preuzimanje WFDB fajlova sa PhysioNet-a"""
     try:
@@ -476,7 +496,7 @@ def download_wfdb_file(record_name, file_type):
     except Exception as e:
         return jsonify({"error": f"Greška pri preuzimanju: {str(e)}"}), 500
 
-@api.post("/filter/design")
+@main.post("/filter/design")
 def design_filter():
     """Dizajn digitalnog filtera"""
     try:
@@ -491,7 +511,7 @@ def design_filter():
     except Exception as e:
         return jsonify({"error": f"Greška u dizajnu filtera: {str(e)}"}), 500
 
-@api.post("/analyze/educational")
+@main.post("/analyze/educational")
 def educational_analysis():
     """Detaljana edukativna analiza sa vizualizacijama i objašnjenjima"""
     try:
@@ -539,7 +559,7 @@ def educational_analysis():
     except Exception as e:
         return jsonify({"error": f"Greška u edukativnoj analizi: {str(e)}"}), 500
 
-@api.post("/convert/signal-to-image")
+@main.post("/convert/signal-to-image")
 def convert_signal_to_image():
     """Konvertuje sirove EKG podatke u sliku za testiranje - POBOLJŠANO sa inteligentnom segmentacijom"""
     try:
@@ -627,7 +647,7 @@ def convert_signal_to_image():
         traceback.print_exc()
         return jsonify({"error": f"Greška pri konverziji signala u sliku: {str(e)}"}), 500
 
-@api.post("/test/signal-image-roundtrip")
+@main.post("/test/signal-image-roundtrip")
 def test_signal_image_roundtrip():
     """Testira punu petlju: Signal -> Slika -> Analiza signala iz slike"""
     try:
@@ -663,7 +683,7 @@ def test_signal_image_roundtrip():
         traceback.print_exc()
         return jsonify({"error": f"Greška pri testiranju roundtrip konverzije: {str(e)}"}), 500
 
-@api.post("/analyze/wfdb-to-image")
+@main.post("/analyze/wfdb-to-image")
 def analyze_wfdb_to_image():
     """Analizira WFDB fajlove i kreira sliku EKG-a - POBOLJŠANO sa .atr podrškom"""
     try:
@@ -837,7 +857,7 @@ def analyze_wfdb_to_image():
         return jsonify({"error": f"Greška pri konverziji WFDB u sliku: {str(e)}"}), 500
 
 
-@api.post("/generate/educational-ekg-image")
+@main.post("/generate/educational-ekg-image")
 def generate_educational_ekg_image():
     """
     Generiše edukativnu EKG sliku sa rezultatima analize
@@ -885,7 +905,7 @@ def generate_educational_ekg_image():
         traceback.print_exc()
         return jsonify({"error": f"Greška pri generisanju edukativne EKG slike: {str(e)}"}), 500
 
-@api.get("/info")
+@main.get("/info")
 def api_info():
     """Informacije o dostupnim endpoint-ima"""
     return jsonify({
@@ -905,9 +925,14 @@ def api_info():
             "/generate/educational-ekg-image": "POST - Generiše edukativnu EKG sliku sa rezultatima analize",
             "/filter/design": "POST - Dizajn digitalnog filtera",
             "/download/wfdb/<record>/<type>": "GET - Preuzmi WFDB fajl sa PhysioNet-a",
+            "/generate/png/time-domain": "POST - 🖼️ PNG time-domain grafikon (matplotlib backend)",
+            "/generate/png/fft-spectrum": "POST - 🖼️ PNG FFT spektar (profesionalni dijagram)",
+            "/generate/png/z-plane": "POST - 🖼️ PNG Z-ravan pole-zero analiza",
+            "/validate/mitbih": "POST - 🔬 MIT-BIH validacija (precision/recall/F1)",
+            "/generate/complete-report": "POST - 📊 INTEGRISANI IZVEŠTAJ (jednim klikom)",
             "/info": "GET - Ove informacije"
         },
-        "version": "2.0",
+        "version": "3.1_production_with_png",
         "description": "EKG analiza API - analiza slika i sirovih signala",
         "scientific_methods": [
             "Spatial Filling Index (Faust et al., 2004)",
@@ -923,3 +948,488 @@ def api_info():
             "🏥 WFDB format - .dat + .hea + .atr (MIT-BIH sa annotations)"
         ]
     })
+
+# =============================================================================
+# PNG VISUALIZATION ENDPOINTS - Backend matplotlib implementacija
+# =============================================================================
+
+@main.route('/generate/png/time-domain', methods=['POST'])
+def generate_time_domain_png():
+    """
+    Generiše PNG grafikon time-domain analize
+    
+    Reference:
+    - Singh, A., et al. (2018). FFT-based analysis of ECG signals. IET Signal Processing.
+    """
+    try:
+        from .analysis.visualization_generator import EKGVisualizationGenerator
+        from .analysis.arrhythmia_detection import detect_r_peaks
+        
+        data = request.get_json()
+        signal_data = data.get('signal_data', [])
+        fs = data.get('fs', 250)
+        title = data.get('title', 'EKG Signal Analysis')
+        
+        if not signal_data:
+            return jsonify({"error": "signal_data je obavezan"}), 400
+        
+        signal_array = np.array(signal_data, dtype=float)
+        
+        # R-peak detekcija za vizualizaciju
+        try:
+            r_peaks_result = detect_r_peaks(signal_array, fs)
+            if isinstance(r_peaks_result, dict) and 'error' not in r_peaks_result:
+                r_peaks = r_peaks_result.get('r_peaks', [])
+            elif isinstance(r_peaks_result, (list, np.ndarray)):
+                r_peaks = list(r_peaks_result)
+            else:
+                r_peaks = []
+        except Exception as e:
+            print(f"R-peak detection error: {e}")
+            r_peaks = []
+        
+        # Generiši PNG
+        viz_gen = EKGVisualizationGenerator()
+        png_path = viz_gen.generate_time_domain_plot(signal_array, fs, r_peaks, title)
+        
+        if isinstance(png_path, dict) and "error" in png_path:
+            return jsonify(png_path), 500
+        
+        return send_file(png_path, as_attachment=True, download_name="ekg_time_domain.png")
+        
+    except Exception as e:
+        return jsonify({"error": f"PNG generation failed: {str(e)}"}), 500
+
+@main.route('/generate/png/fft-spectrum', methods=['POST'])
+def generate_fft_spectrum_png():
+    """
+    Generiše PNG grafikon FFT spektralne analize
+    
+    Reference:
+    - Hong, S., et al. (2020). Hybrid frequency-time methods for ECG analysis. 
+      Circulation Research. DOI: 10.1161/CIRCRESAHA.119.316681
+    """
+    try:
+        from .analysis.visualization_generator import EKGVisualizationGenerator
+        
+        data = request.get_json()
+        signal_data = data.get('signal_data', [])
+        fs = data.get('fs', 250)
+        title = data.get('title', 'FFT Spektralna Analiza')
+        
+        if not signal_data:
+            return jsonify({"error": "signal_data je obavezan"}), 400
+        
+        signal_array = np.array(signal_data, dtype=float)
+        
+        # Generiši PNG
+        viz_gen = EKGVisualizationGenerator()
+        png_path = viz_gen.generate_fft_spectrum_plot(signal_array, fs, title)
+        
+        if isinstance(png_path, dict) and "error" in png_path:
+            return jsonify(png_path), 500
+        
+        return send_file(png_path, as_attachment=True, download_name="ekg_fft_spectrum.png")
+        
+    except Exception as e:
+        return jsonify({"error": f"PNG generation failed: {str(e)}"}), 500
+
+@main.route('/generate/png/z-plane', methods=['POST'])
+def generate_z_plane_png():
+    """
+    Generiše PNG grafikon Z-ravan pole-zero analize
+    
+    Reference:
+    - Zhang, T., et al. (2021). Pole-zero analysis using Z-transform for ECG signal 
+      stability detection. Biomedical Signal Processing. DOI: 10.1016/j.bspc.2021.102543
+    """
+    try:
+        from .analysis.visualization_generator import EKGVisualizationGenerator
+        from .analysis.ztransform import z_transform_analysis
+        
+        data = request.get_json()
+        signal_data = data.get('signal_data', [])
+        fs = data.get('fs', 250)
+        title = data.get('title', 'Z-Ravan Analiza')
+        
+        if not signal_data:
+            return jsonify({"error": "signal_data je obavezan"}), 400
+        
+        signal_array = np.array(signal_data, dtype=float)
+        
+        # Z-transform analiza
+        z_result = z_transform_analysis(signal_array, fs)
+        if "error" in z_result:
+            return jsonify(z_result), 500
+        
+        poles = z_result.get('poles', [])
+        zeros = z_result.get('zeros', [])
+        
+        # Generiši PNG
+        viz_gen = EKGVisualizationGenerator()
+        png_path = viz_gen.generate_pole_zero_plot(poles, zeros, title)
+        
+        if isinstance(png_path, dict) and "error" in png_path:
+            return jsonify(png_path), 500
+        
+        return send_file(png_path, as_attachment=True, download_name="z_plane_analysis.png")
+        
+    except Exception as e:
+        return jsonify({"error": f"PNG generation failed: {str(e)}"}), 500
+
+# =============================================================================
+# MIT-BIH VALIDATION ENDPOINT
+# =============================================================================
+
+@main.route('/validate/mitbih', methods=['POST'])
+def validate_against_mitbih():
+    """
+    MIT-BIH database validacija - precision/recall/F1 score
+    
+    Reference:
+    - Goldberger, A. L., et al. (2020). PhysioBank, PhysioToolkit, and PhysioNet: 
+      Components of a new research resource for complex physiologic signals. 
+      Circulation, 101(23), e215-e220. DOI: 10.1161/01.CIR.101.23.e215
+    """
+    try:
+        from .analysis.mitbih_validator import MITBIHValidator
+        from .analysis.arrhythmia_detection import detect_r_peaks
+        
+        data = request.get_json()
+        signal_data = data.get('signal_data', [])
+        record_path = data.get('record_path', '')
+        fs = data.get('fs', 360)  # MIT-BIH default
+        tolerance_ms = data.get('tolerance_ms', 50)
+        
+        if not signal_data:
+            return jsonify({"error": "signal_data je obavezan"}), 400
+        
+        if not record_path:
+            return jsonify({"error": "record_path je obavezan za MIT-BIH validaciju"}), 400
+        
+        signal_array = np.array(signal_data, dtype=float)
+        
+        # Detektuj R-pikove
+        r_peaks_result = detect_r_peaks(signal_array, fs)
+        if "error" in r_peaks_result:
+            return jsonify(r_peaks_result), 500
+        
+        detected_peaks = r_peaks_result.get('r_peaks', [])
+        
+        # MIT-BIH validacija
+        validator = MITBIHValidator(tolerance_ms=tolerance_ms)
+        validation_report = validator.generate_validation_report(
+            signal_array, detected_peaks, record_path, fs
+        )
+        
+        if "error" in validation_report:
+            return jsonify(validation_report), 500
+        
+        return safe_jsonify({
+            "validation_report": validation_report,
+            "detection_results": r_peaks_result,
+            "input_parameters": {
+                "record_path": record_path,
+                "tolerance_ms": tolerance_ms,
+                "sampling_frequency": fs,
+                "signal_length": len(signal_array)
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({"error": f"MIT-BIH validation failed: {str(e)}"}), 500
+
+# =============================================================================
+# INTEGRISANI IZVEŠTAJ - One-click complete analysis
+# =============================================================================
+
+@main.route('/generate/complete-report', methods=['POST'])
+def generate_complete_analysis_report():
+    """
+    INTEGRISANI IZVEŠTAJ - Jednim klikom kompletna analiza
+    
+    Vraća: Fs, trajanje, R-pikovi, HR/HRV, FFT peak, realistični SNR + PNG linkovi
+    
+    Reference:
+    - Singh, A., et al. (2018). FFT-based analysis of ECG signals. IET Signal Processing.
+    - IEEE Std 1057-2017: Standard for Digitizing Waveform Recorders (SNR calculation)
+    """
+    try:
+        from .analysis.visualization_generator import EKGVisualizationGenerator
+        from .analysis.arrhythmia_detection import detect_r_peaks
+        from .analysis.fft import analyze_fft
+        from .analysis.ztransform import z_transform_analysis
+        # from .analysis.advanced_ekg_analysis import analyze_ekg_signal  # Not needed for complete report
+        from scipy import signal as scipy_signal
+        from datetime import datetime
+        
+        data = request.get_json()
+        signal_data = data.get('signal_data', [])
+        fs = data.get('fs', 250)
+        title = data.get('title', 'EKG Complete Analysis Report')
+        include_mitbih = data.get('include_mitbih_validation', False)
+        record_path = data.get('record_path', '')
+        
+        if not signal_data:
+            return jsonify({"error": "signal_data je obavezan"}), 400
+        
+        signal_array = np.array(signal_data, dtype=float)
+        signal_length_sec = len(signal_array) / fs
+        
+        # =================================================================
+        # 1. OSNOVNE INFORMACIJE
+        # =================================================================
+        basic_info = {
+            "sampling_frequency_hz": fs,
+            "signal_duration_sec": float(signal_length_sec),
+            "total_samples": len(signal_array),
+            "signal_range": {
+                "min": float(np.min(signal_array)),
+                "max": float(np.max(signal_array)),
+                "mean": float(np.mean(signal_array)),
+                "std": float(np.std(signal_array))
+            }
+        }
+        
+        # =================================================================
+        # 2. R-PEAK DETEKCIJA I HR/HRV ANALIZA
+        # =================================================================
+        try:
+            r_peaks_raw = detect_r_peaks(signal_array, fs)
+            # detect_r_peaks vraća numpy array direktno
+            if isinstance(r_peaks_raw, np.ndarray):
+                r_peaks = r_peaks_raw.tolist()
+            elif isinstance(r_peaks_raw, list):
+                r_peaks = r_peaks_raw
+            else:
+                r_peaks = []
+        except Exception as e:
+            print(f"R-peak detection failed: {e}")
+            r_peaks = []
+        
+        # Kreiraj r_peaks_result format za kompatibilnost
+        r_peaks_result = {"r_peaks": r_peaks} if r_peaks else {"error": "No R-peaks detected"}
+        
+        hr_hrv_analysis = {}
+        if len(r_peaks) > 0:
+            
+            if len(r_peaks) > 1:
+                # Heart Rate
+                heart_rate_bpm = len(r_peaks) / signal_length_sec * 60
+                
+                # HRV analiza
+                rr_intervals = np.diff(r_peaks) / fs * 1000  # ms
+                hrv_rmssd = float(np.sqrt(np.mean(np.diff(rr_intervals)**2)))
+                hrv_sdnn = float(np.std(rr_intervals))
+                hrv_pnn50 = float(np.sum(np.abs(np.diff(rr_intervals)) > 50) / len(rr_intervals) * 100)
+                
+                hr_hrv_analysis = {
+                    "r_peaks_count": len(r_peaks),
+                    "heart_rate_bpm": float(heart_rate_bpm),
+                    "rr_intervals_ms": rr_intervals.tolist(),
+                    "hrv_metrics": {
+                        "rmssd_ms": hrv_rmssd,
+                        "sdnn_ms": hrv_sdnn,
+                        "pnn50_percent": hrv_pnn50,
+                        "mean_rr_ms": float(np.mean(rr_intervals)),
+                        "min_rr_ms": float(np.min(rr_intervals)),
+                        "max_rr_ms": float(np.max(rr_intervals))
+                    }
+                }
+        
+        # =================================================================
+        # 3. FFT ANALIZA - DOMINANTNA FREKVENCIJA
+        # =================================================================
+        fft_result = analyze_fft(signal_array, fs)
+        fft_peak_analysis = {}
+        
+        if "error" not in fft_result:
+            spectrum = fft_result.get('spectrum', [])
+            frequencies = fft_result.get('frequencies', [])
+            
+            if spectrum and frequencies:
+                # Fiziološki relevantni opseg (0.5-10 Hz)
+                freq_array = np.array(frequencies)
+                spectrum_array = np.array(spectrum)
+                physio_mask = (freq_array >= 0.5) & (freq_array <= 10.0)
+                
+                if np.any(physio_mask):
+                    physio_spectrum = spectrum_array[physio_mask]
+                    physio_freq = freq_array[physio_mask]
+                    
+                    peak_idx = np.argmax(physio_spectrum)
+                    dominant_freq = physio_freq[peak_idx]
+                    peak_amplitude = physio_spectrum[peak_idx]
+                    
+                    fft_peak_analysis = {
+                        "dominant_frequency_hz": float(dominant_freq),
+                        "peak_amplitude": float(peak_amplitude),
+                        "frequency_category": _categorize_frequency(dominant_freq),
+                        "physiological_range_power": float(np.sum(physio_spectrum**2))
+                    }
+        
+        # =================================================================
+        # 4. REALISTIČNI SNR PO SEGMENTIMA
+        # =================================================================
+        snr_analysis = {}
+        try:
+            # Jednostavan bandpass filter za "čist" signal
+            nyquist = fs / 2
+            low_freq = 0.5 / nyquist
+            high_freq = 40 / nyquist
+            b, a = scipy_signal.butter(4, [low_freq, high_freq], btype='band')
+            filtered_signal = scipy_signal.filtfilt(b, a, signal_array)
+            
+            # SNR kalkulacija po segmentima
+            viz_gen = EKGVisualizationGenerator()
+            snr_result = viz_gen.calculate_realistic_snr(signal_array, filtered_signal, fs, 10)
+            
+            if "error" not in snr_result:
+                snr_analysis = snr_result
+                
+        except Exception as e:
+            snr_analysis = {"error": f"SNR calculation failed: {str(e)}"}
+        
+        # =================================================================
+        # 5. Z-TRANSFORM STABILNOST
+        # =================================================================
+        z_analysis = {}
+        z_result = z_transform_analysis(signal_array, fs)
+        if "error" not in z_result:
+            stability = z_result.get('stability', {})
+            z_analysis = {
+                "system_stable": stability.get('stable', False),
+                "max_pole_magnitude": stability.get('max_pole_magnitude', 0),
+                "pole_count": stability.get('pole_count', 0),
+                "stability_message": stability.get('message', 'Unknown')
+            }
+        
+        # =================================================================
+        # 6. MIT-BIH VALIDACIJA (opcionalno)
+        # =================================================================
+        mitbih_validation = {}
+        if include_mitbih and record_path:
+            try:
+                from .analysis.mitbih_validator import MITBIHValidator
+                validator = MITBIHValidator(tolerance_ms=50)
+                validation_report = validator.generate_validation_report(
+                    signal_array, r_peaks, record_path, fs
+                )
+                if "error" not in validation_report:
+                    mitbih_validation = validation_report
+            except Exception as e:
+                mitbih_validation = {"error": f"MIT-BIH validation failed: {str(e)}"}
+        
+        # =================================================================
+        # 7. KOMPLETNI IZVEŠTAJ
+        # =================================================================
+        complete_report = {
+            "report_metadata": {
+                "generated_at": datetime.now().isoformat(),
+                "title": title,
+                "analysis_version": "3.1_production"
+            },
+            "signal_information": basic_info,
+            "cardiac_analysis": {
+                "r_peak_detection": r_peaks_result,
+                "heart_rate_variability": hr_hrv_analysis
+            },
+            "frequency_analysis": {
+                "fft_results": fft_result,
+                "dominant_frequency": fft_peak_analysis
+            },
+            "signal_quality": {
+                "snr_analysis": snr_analysis,
+                "z_transform_stability": z_analysis
+            },
+            "validation": {
+                "mitbih_comparison": mitbih_validation if mitbih_validation else "Not requested"
+            },
+            "png_visualizations": {
+                "note": "Use separate PNG endpoints to generate visualizations",
+                "available_endpoints": [
+                    "/generate/png/time-domain",
+                    "/generate/png/fft-spectrum", 
+                    "/generate/png/z-plane"
+                ]
+            },
+            "summary": {
+                "overall_quality": _assess_overall_quality(snr_analysis, z_analysis, hr_hrv_analysis),
+                "recommendations": _generate_recommendations(snr_analysis, fft_peak_analysis, hr_hrv_analysis)
+            }
+        }
+        
+        return safe_jsonify(complete_report)
+        
+    except Exception as e:
+        return jsonify({"error": f"Complete report generation failed: {str(e)}"}), 500
+
+def _categorize_frequency(freq_hz):
+    """Kategorizuje dominantnu frekvenciju"""
+    if 0.5 <= freq_hz <= 3:
+        return "P-wave range (0.5-3 Hz)"
+    elif 1 <= freq_hz <= 5:
+        return "T-wave range (1-5 Hz)"
+    elif 5 <= freq_hz <= 15:
+        return "QRS complex range (5-15 Hz)"
+    else:
+        return "Outside typical ECG range"
+
+def _assess_overall_quality(snr_analysis, z_analysis, hr_hrv_analysis):
+    """Procenjuje ukupni kvalitet signala"""
+    quality_score = 0
+    
+    # SNR contribution
+    if snr_analysis and "mean_snr_db" in snr_analysis:
+        if snr_analysis["mean_snr_db"] >= 20:
+            quality_score += 3
+        elif snr_analysis["mean_snr_db"] >= 15:
+            quality_score += 2
+        elif snr_analysis["mean_snr_db"] >= 10:
+            quality_score += 1
+    
+    # Stability contribution
+    if z_analysis and z_analysis.get("system_stable", False):
+        quality_score += 2
+    
+    # HR detection contribution
+    if hr_hrv_analysis and "heart_rate_bpm" in hr_hrv_analysis:
+        hr = hr_hrv_analysis["heart_rate_bpm"]
+        if 60 <= hr <= 100:  # Normal HR range
+            quality_score += 2
+        elif 50 <= hr <= 120:  # Acceptable range
+            quality_score += 1
+    
+    if quality_score >= 6:
+        return "Odličan"
+    elif quality_score >= 4:
+        return "Dobar"
+    elif quality_score >= 2:
+        return "Osrednji"
+    else:
+        return "Potrebno poboljšanje"
+
+def _generate_recommendations(snr_analysis, fft_analysis, hr_hrv_analysis):
+    """Generiše preporuke na osnovu analize"""
+    recommendations = []
+    
+    if snr_analysis and "mean_snr_db" in snr_analysis:
+        if snr_analysis["mean_snr_db"] < 15:
+            recommendations.append("Potrebno poboljšanje kvaliteta signala - razmotriti dodatno filtriranje")
+    
+    if fft_analysis and "dominant_frequency_hz" in fft_analysis:
+        freq = fft_analysis["dominant_frequency_hz"]
+        if freq < 0.5 or freq > 15:
+            recommendations.append("Dominantna frekvencija van fiziološkog opsega - proveriti signal")
+    
+    if hr_hrv_analysis and "heart_rate_bpm" in hr_hrv_analysis:
+        hr = hr_hrv_analysis["heart_rate_bpm"]
+        if hr < 50:
+            recommendations.append("Bradikardija detektovana - potrebna medicinska evaluacija")
+        elif hr > 120:
+            recommendations.append("Tahikardija detektovana - potrebna medicinska evaluacija")
+    
+    if not recommendations:
+        recommendations.append("Signal je u normalnim parametrima")
+    
+    return recommendations

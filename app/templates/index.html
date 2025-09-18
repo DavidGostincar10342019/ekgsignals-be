@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="EKG Analiza">
     
-    <title>EKG Analiza v2.7 - Mobilna Aplikacija</title>
+    <title>EKG Analiza v2.8 - Mobilna Aplikacija</title>
     
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
@@ -26,12 +26,16 @@
     
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- jsPDF library for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <div class="container">
         <!-- Header -->
         <header class="header">
-            <h1><i class="fas fa-heartbeat"></i> EKG Analiza <span style="font-size: 0.4em; color: #666; background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">v2.7</span></h1>
+            <h1><i class="fas fa-heartbeat"></i> EKG Analiza <span style="font-size: 0.4em; color: #666; background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">v2.8</span></h1>
             <p>Analiziraj svoj EKG signal fotografijom</p>
         </header>
 
@@ -368,7 +372,7 @@
             <div class="disclaimer" style="background: #e8f5e8; border-left: 4px solid #28a745;">
                 <div class="disclaimer-title">📊 DODATNA ANALIZA</div>
                 <button id="additionalAnalysisBtn" class="btn btn-success" onclick="window.ekgAnalyzer && window.ekgAnalyzer.showAdditionalAnalysis()" style="margin: 10px 0; display: block;">
-                    <i class="fas fa-chart-line"></i> Prikaži Vizuelizacije za Master Rad
+                    <i class="fas fa-chart-line"></i> Advanced Signal Analysis
                 </button>
                 <p style="font-size: 0.9rem; margin: 5px 0;">
                     Dodatne vizuelizacije signala, FFT spektar i signal processing pipeline.

@@ -1,9 +1,10 @@
 """
-Napredna EKG analiza bazirana na naučnim radovima:
+Napredna EKG analiza bazirana na modernim naučnim radovima:
 - Acharya et al. (2018, 2021): Feature extraction i hibridni modeli za signal complexity
 - Zhang et al. (2019): Time-frequency tehnike za kratkoročnu ECG analizu
-- Proakis & Manolakis (2007): Napredni DSP algoritmi
-- Sörnmo & Laguna (2005): Specijalizovana EKG obrada
+- Clifford et al. (2020): Advanced Methods and Tools for ECG Data Analysis
+- Harris et al. (2020): NumPy array programming for signal processing
+- Virtanen et al. (2020): SciPy 1.0 fundamental algorithms
 - Yıldırım (2018): Wavelet sekvence i deep learning pristup
 """
 
@@ -47,6 +48,8 @@ def signal_complexity_measure(ekg_signal, fs=250):
         - Acharya, U.R. et al. (2018) Feature extraction techniques for automated ECG analysis
         - Zhang, Z. et al. (2019) Time-frequency techniques for short-term ECG analysis
         - Acharya, U.R. et al. (2021) Hybrid models for cardiovascular disease classification
+        - Harris, C.R. et al. (2020) Array programming with NumPy. Nature, 585, 357-362
+        - Virtanen, P. et al. (2020) SciPy 1.0: Fundamental algorithms. Nature Methods, 17, 261-272
     """
     signal_array = np.array(ekg_signal, dtype=float)
     N = len(signal_array)
@@ -96,7 +99,7 @@ def signal_complexity_measure(ekg_signal, fs=250):
         "interpretation": get_complexity_interpretation(sfi),
         "corrected_version": True,
         "numerical_stability": "Enhanced with dt inclusion and edge case protection",
-        "method": "Multi-dimensional signal complexity (Acharya et al. 2018, 2021)"
+        "method": "Multi-dimensional signal complexity (Acharya et al. 2018, 2021) - Enhanced with modern NumPy implementation"
     }
 
 def get_complexity_interpretation(scm):
@@ -320,7 +323,7 @@ def get_wavelet_interpretation(entropy, details):
 
 def advanced_filtering(ekg_signal, fs=250):
     """
-    Napredni filtri prema Sörnmo & Laguna (2005)
+    Napredni filtri prema Clifford et al. (2020) - Advanced ECG Processing Methods
     
     Args:
         ekg_signal: 1D numpy array

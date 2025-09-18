@@ -1,9 +1,9 @@
 from flask import Flask
-from .routes import api
+from .routes import main
 
 def create_app():
     app = Flask(__name__)
-    app.register_blueprint(api, url_prefix="/api")
+    app.register_blueprint(main, url_prefix="/api")
     
     # Dodaj rutu za glavnu stranicu
     @app.route("/")
