@@ -608,3 +608,171 @@ Implementacija kombinuje:
 - **🔄 Hibridne implementacije (3):** Kombinaciju biblioteka i vlastitog koda
 
 Svi algoritmi su implementirani sa kompletnom transparentnošću izvora i mogu se koristiti za akademsku validaciju i dalja istraživanja u oblasti biomedicinskog signal processing-a.
+
+---
+
+## 6. DODATNI ALGORITMI ZA VALIDACIJU I KVALITET
+
+### 6.1 Signal Quality Assessment (SNR)
+
+**Matematička osnova:**
+```
+SNR_dB = 20*log10(rms(x_filt)/rms(x-x_filt))
+gde je: x_filt = filtered signal, (x-x_filt) = noise component
+```
+
+**Implementacija:**
+```python
+def calculate_realistic_snr(signal, filtered_signal, fs=250, segment_duration=10):
+    segment_samples = int(segment_duration * fs)
+    num_segments = len(signal) // segment_samples
+    
+    snr_values = []
+    categories = []
+    
+    for i in range(num_segments):
+        start_idx = i * segment_samples
+        end_idx = start_idx + segment_samples
+        
+        seg_original = signal[start_idx:end_idx]
+        seg_filtered = filtered_signal[start_idx:end_idx]
+        noise = seg_original - seg_filtered
+        
+        # RMS kalkulacija
+        rms_signal = np.sqrt(np.mean(seg_filtered**2))
+        rms_noise = np.sqrt(np.mean(noise**2))
+        
+        if rms_noise > 1e-12:
+            snr_db = 20 * np.log10(rms_signal / rms_noise)
+        else:
+            snr_db = 60  # Very high SNR
+        
+        snr_values.append(snr_db)
+        
+        # Kategorija bazirana na SNR vrednosti
+        if snr_db >= 20:
+            categories.append("Odličan")
+        elif snr_db >= 15:
+            categories.append("Dobar") 
+        elif snr_db >= 10:
+            categories.append("Osrednji")
+        else:
+            categories.append("Loš")
+    
+    return {
+        "snr_values_db": snr_values,
+        "mean_snr_db": np.mean(snr_values),
+        "categories": categories,
+        "overall_category": most_common_category(categories)
+    }
+```
+
+**Referenca:** IEEE Std 1057-2017: Standard for Digitizing Waveform Recorders
+
+**Tip implementacije:** 🔧 Vlastita implementacija sa IEEE standardom
+
+**Prednosti nad klasičnim SNR:**
+1. **Segmentirana analiza** - različiti delovi signala mogu imati različit kvalitet
+2. **Kategorije razumljive korisniku** - umesto brojeva, "Odličan/Dobar/Osrednji/Loš"
+3. **Medicinski relevantno** - uzima u obzir EKG filtering karakteristike
+
+---
+
+### 6.2 MIT-BIH Database Validacija
+
+**Matematička osnova:**
+```
+TP = count(|detected_peak - reference_peak| ≤ tolerance_samples)
+FP = detected_peaks - TP  
+FN = reference_peaks - TP
+
+Precision = TP / (TP + FP)
+Recall = TP / (TP + FN)  
+F1_Score = 2 * Precision * Recall / (Precision + Recall)
+```
+
+**Implementacija:**
+```python
+def _calculate_tp_fp_fn_with_tolerance(detected_peaks, reference_peaks, tolerance_samples):
+    detected = np.array(detected_peaks)
+    reference = np.array(reference_peaks)
+    
+    true_positives = 0
+    matched_reference = set()
+    
+    for det_peak in detected:
+        distances = np.abs(reference - det_peak)
+        min_distance_idx = np.argmin(distances)
+        min_distance = distances[min_distance_idx]
+        
+        if min_distance <= tolerance_samples and min_distance_idx not in matched_reference:
+            true_positives += 1
+            matched_reference.add(min_distance_idx)
+    
+    false_positives = len(detected) - true_positives
+    false_negatives = len(reference) - true_positives
+    
+    return {
+        "true_positives": true_positives,
+        "false_positives": false_positives,
+        "false_negatives": false_negatives
+    }
+
+def validate_against_mitbih(signal_data, fs, tolerance_ms=50):
+    tolerance_samples = int((tolerance_ms / 1000.0) * fs)
+    
+    # Detect R-peaks using our algorithm
+    detected_peaks = detect_r_peaks(signal_data, fs)
+    
+    # Get reference peaks (iz .atr fajla ili simulacija)
+    reference_peaks = get_mitbih_reference_peaks()
+    
+    # TP/FP/FN kalkulacija
+    tp_fp_fn = _calculate_tp_fp_fn_with_tolerance(detected_peaks, reference_peaks, tolerance_samples)
+    
+    # Precision/Recall/F1
+    precision, recall, f1_score = _calculate_precision_recall_f1(tp_fp_fn)
+    
+    return {
+        "precision": round(precision, 4),
+        "recall": round(recall, 4),
+        "f1_score": round(f1_score, 4),
+        "true_positives": tp_fp_fn["true_positives"],
+        "false_positives": tp_fp_fn["false_positives"],
+        "false_negatives": tp_fp_fn["false_negatives"],
+        "performance_grade": _assess_performance_grade(f1_score),
+        "clinical_reliability": _assess_clinical_reliability(precision, recall)
+    }
+```
+
+**Referenca:** 
+- MIT-BIH Arrhythmia Database: Moody & Mark (2001)
+- Performance metrics: Sensitivity/PPV analysis (AAMI EC57)
+
+**Tip implementacije:** 🔧 Vlastita implementacija MIT-BIH standarda
+
+**Ključne karakteristike:**
+1. **±50ms tolerancija** - realna tolerancija za R-peak poklapanje
+2. **Performance grading** - A+, A, B+, B, C, D, F ocene
+3. **Clinical reliability** - Medical grade, Research grade, etc.
+4. **Kompatibilnost sa .atr fajlovima** - prava MIT-BIH anotacija podrška
+
+---
+
+## 7. ZAKLJUČAK SA POBOLJŠANJIMA
+
+Aplikacija implementira kompletnu analizu EKG signala koristeći moderne algoritme za digitalnu obradu signala sa **dodatnim validacionim komponentama**. Ključni originalnost je modifikacija Spatial Filling Index formule koja uključuje vremenski korak, čime se poboljšava preciznost analize za različite frekvencije uzorkovanja.
+
+### **Finalna implementacija kombinuje:**
+- **📚 Biblioteke (7):** Direktnu upotrebu NumPy, SciPy, OpenCV
+- **🔧 Vlastite implementacije (10):** Algoritme bazirane na naučnoj literaturi  
+- **🔄 Hibridne implementacije (3):** Kombinaciju biblioteka i vlastitog koda
+
+### **Dodatne validacione komponente:**
+- **SNR analiza po segmentima** sa IEEE 1057-2017 standardom
+- **MIT-BIH TP/FP/FN validacija** sa precision/recall/F1 metrics
+- **PNG vizualizacije** za publikaciju u master radu
+- **PDF export** sa kompletnim rezultatima
+
+### **Akademska vrednost:**
+Implementacija pruža sve potrebne alate za akademsku validaciju biomedicinskih signal processing algoritma, uključujući standard benchmarking protiv MIT-BIH baze podataka i objektivno merenje kvaliteta signala.

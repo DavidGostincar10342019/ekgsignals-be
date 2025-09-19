@@ -291,10 +291,12 @@ class EKGAnalyzer {
             this.populateStructuredResults(data);
         }
         
-        // NOVO: Dodaj vizuelizacije za master rad (bez kvarenja postojeće logike)
+        // VRAĆENO v3.1: Optimizovane vizuelizacije
         if (data.thesis_visualizations && !data.thesis_visualizations.error) {
-            console.log('📊 Adding thesis visualizations');
+            console.log('📊 v3.1 Using OPTIMIZED thesis visualizations');
             this.addThesisVisualizations(data.thesis_visualizations);
+        } else {
+            console.log('⚠️ v3.1 No thesis visualizations available');
         }
 
         // Scroll to results
@@ -1782,6 +1784,10 @@ class EKGAnalyzer {
 
     // NOVO: Dodaj vizuelizacije za master rad
     addThesisVisualizations(visualizations) {
+        console.log('🎯 v3.1 Starting addThesisVisualizations - FIXED for broken pipe');
+        console.log('📊 v3.1 Received data:', visualizations);
+        console.log('📊 v3.1 Data type:', typeof visualizations);
+        
         const resultsSection = document.getElementById('resultsSection');
         
         // Kreiraj sekciju za vizuelizacije ako ne postoji
@@ -1802,6 +1808,58 @@ class EKGAnalyzer {
             </div>
         `;
 
+        // Check for new format first (v3.1)
+        if (visualizations.visualizations && typeof visualizations.visualizations === 'object') {
+            console.log('📊 v3.1 Using NEW FORMAT');
+            const vizData = visualizations.visualizations;
+            
+            // DEBUG: Prikaži sve ključeve
+            console.log('📊 v3.1 Available visualization keys:', Object.keys(vizData));
+            for (let key of Object.keys(vizData)) {
+                const viz = vizData[key];
+                const hasImage = !!viz.image_base64;
+                const imageLen = viz.image_base64 ? viz.image_base64.length : 0;
+                console.log(`📊 v3.1 Key "${key}": title="${viz.title}" hasImage=${hasImage} imageLength=${imageLen}`);
+            }
+            
+            // Iterate through numbered visualizations
+            for (let i = 1; i <= 4; i++) {
+                if (vizData[i.toString()]) {
+                    console.log(`📊 v3.1 Adding visualization ${i}:`, vizData[i.toString()].title);
+                    const viz = vizData[i.toString()];
+                    
+                    let imageContent = '';
+                    if (viz.image_base64) {
+                        imageContent = `<img src="data:image/png;base64,${viz.image_base64}" 
+                                             style="max-width: 100%; border: 2px solid #ddd; border-radius: 8px; margin: 10px 0;"
+                                             alt="Visualization ${i}">`;
+                    } else {
+                        imageContent = `<div style="background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 8px; padding: 40px; text-align: center; margin: 10px 0; color: #6c757d;">
+                                           <i class="fas fa-image" style="font-size: 2rem; margin-bottom: 10px;"></i><br>
+                                           Slika se generiše...
+                                       </div>`;
+                    }
+                    
+                    visualizationsHTML += `
+                        <div class="result-card">
+                            <div class="result-header">
+                                <i class="fas fa-chart-line result-icon" style="color: #3498db;"></i>
+                                <h3 class="result-title">${viz.title}</h3>
+                            </div>
+                            <div class="result-content">
+                                <p><strong>Opis:</strong> ${viz.description}</p>
+                                ${imageContent}
+                                <p style="font-size: 0.9rem; color: #666;"><em>${viz.caption}</em></p>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+        }
+        // OLD FORMAT FALLBACK
+        else {
+            console.log('📊 v2.9 Using OLD FORMAT (fallback)');
+        
         // 1. EKG Signal sa R-pikovima
         if (visualizations.ekg_with_peaks) {
             visualizationsHTML += `
@@ -1877,6 +1935,7 @@ class EKGAnalyzer {
                 </div>
             `;
         }
+        } // End of old format
 
         // Dugme za export
         visualizationsHTML += `
@@ -1891,10 +1950,176 @@ class EKGAnalyzer {
         `;
 
         vizSection.innerHTML = visualizationsHTML;
-        
-
         vizSection.style.display = 'block';
         console.log('📊 Thesis visualizations added to page');
+    }
+
+    // NOVO v3.1: Asinhrono generisanje vizuelizacija
+    async generateVisualizationsAsync(analysisData) {
+        console.log('🚀 v3.1 Starting async visualization generation');
+        
+        // Prvo prikaži placeholder sekciju
+        this.showVisualizationPlaceholders();
+        
+        // Generiši svaku vizuelizaciju asinhrono
+        const visualizations = ['1', '2', '3', '4'];
+        const promises = visualizations.map(id => this.generateSingleVisualization(id, analysisData));
+        
+        // Čekaj sve vizuelizacije
+        const results = await Promise.allSettled(promises);
+        
+        // Obradi rezultate
+        results.forEach((result, index) => {
+            const vizId = visualizations[index];
+            if (result.status === 'fulfilled' && result.value) {
+                this.updateVisualizationContent(vizId, result.value);
+            } else {
+                this.updateVisualizationError(vizId, result.reason);
+            }
+        });
+        
+        console.log('✅ v3.1 All visualizations completed');
+    }
+
+    showVisualizationPlaceholders() {
+        const resultsSection = document.getElementById('resultsSection');
+        let vizSection = document.getElementById('thesisVisualizationsSection');
+        
+        if (!vizSection) {
+            vizSection = document.createElement('div');
+            vizSection.id = 'thesisVisualizationsSection';
+            vizSection.className = 'main-card';
+            vizSection.style.marginTop = '20px';
+            resultsSection.parentNode.insertBefore(vizSection, resultsSection.nextSibling);
+        }
+
+        vizSection.innerHTML = `
+            <h2><i class="fas fa-chart-line"></i> Vizuelizacije za Master Rad <span style="font-size: 0.4em; color: #666;">(v3.1)</span></h2>
+            <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <strong>📊 Furijeova i Z-transformacija u analizi biomedicinskih signala</strong><br>
+                Generišu se grafici za uključivanje u poglavlje 5 master rada...
+            </div>
+            
+            <div id="viz-1" class="result-card">
+                <div class="result-header">
+                    <i class="fas fa-chart-line result-icon" style="color: #3498db;"></i>
+                    <h3 class="result-title">1. EKG Signal sa Detektovanim R-pikovima</h3>
+                </div>
+                <div class="result-content">
+                    <p><strong>Opis:</strong> Vremenski domen EKG signala sa automatski detektovanim R-pikovima označenim crvenim krugovima.</p>
+                    <div class="loading-placeholder">
+                        <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #3498db;"></i><br>
+                        Generiše se slika 1...
+                    </div>
+                    <p style="font-size: 0.9rem; color: #666;"><em>Slika 5.1: EKG signal u vremenskom domenu sa detektovanim R-pikovima</em></p>
+                </div>
+            </div>
+            
+            <div id="viz-2" class="result-card">
+                <div class="result-header">
+                    <i class="fas fa-chart-line result-icon" style="color: #3498db;"></i>
+                    <h3 class="result-title">2. FFT Spektar (Furijeova Transformacija)</h3>
+                </div>
+                <div class="result-content">
+                    <p><strong>Opis:</strong> Frekvencijski spektar EKG signala dobijen Furijeovom transformacijom.</p>
+                    <div class="loading-placeholder">
+                        <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #3498db;"></i><br>
+                        Generiše se slika 2...
+                    </div>
+                    <p style="font-size: 0.9rem; color: #666;"><em>Slika 5.2: FFT spektar EKG signala sa označenom dominantnom frekvencijom</em></p>
+                </div>
+            </div>
+            
+            <div id="viz-3" class="result-card">
+                <div class="result-header">
+                    <i class="fas fa-chart-line result-icon" style="color: #3498db;"></i>
+                    <h3 class="result-title">3. Poređenje sa MIT-BIH Anotacijama</h3>
+                </div>
+                <div class="result-content">
+                    <p><strong>Opis:</strong> Poređenje automatski detektovanih R-pikova sa ekspertskim MIT-BIH anotacijama.</p>
+                    <div class="loading-placeholder">
+                        <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #3498db;"></i><br>
+                        Generiše se slika 3...
+                    </div>
+                    <p style="font-size: 0.9rem; color: #666;"><em>Slika 5.3: Validacija algoritma protiv MIT-BIH ekspertskih anotacija</em></p>
+                </div>
+            </div>
+            
+            <div id="viz-4" class="result-card">
+                <div class="result-header">
+                    <i class="fas fa-chart-line result-icon" style="color: #3498db;"></i>
+                    <h3 class="result-title">4. Signal Processing Pipeline (Z-transformacija)</h3>
+                </div>
+                <div class="result-content">
+                    <p><strong>Opis:</strong> Koraci obrade signala korišćenjem Z-transformacije.</p>
+                    <div class="loading-placeholder">
+                        <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #3498db;"></i><br>
+                        Generiše se slika 4...
+                    </div>
+                    <p style="font-size: 0.9rem; color: #666;"><em>Slika 5.4: Pipeline obrade biomedicinskog signala korišćenjem Z-transformacije</em></p>
+                </div>
+            </div>
+        `;
+        
+        vizSection.style.display = 'block';
+    }
+
+    async generateSingleVisualization(vizId, analysisData) {
+        try {
+            console.log(`🎨 v3.1 Generating visualization ${vizId}`);
+            
+            const response = await fetch(`/api/visualizations/thesis/visualization/${vizId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    signal: analysisData.extracted_signal || [],
+                    fs: analysisData.signal_info?.sampling_frequency || 250,
+                    analysis_results: analysisData
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            if (result.success) {
+                console.log(`✅ v3.1 Visualization ${vizId} completed`);
+                return result;
+            } else {
+                throw new Error(result.error || 'Unknown error');
+            }
+            
+        } catch (error) {
+            console.error(`❌ v3.1 Visualization ${vizId} failed:`, error);
+            throw error;
+        }
+    }
+
+    updateVisualizationContent(vizId, vizData) {
+        const placeholder = document.querySelector(`#viz-${vizId} .loading-placeholder`);
+        if (placeholder && vizData.image_base64) {
+            placeholder.innerHTML = `
+                <img src="data:image/png;base64,${vizData.image_base64}" 
+                     style="max-width: 100%; border: 2px solid #ddd; border-radius: 8px; margin: 10px 0;"
+                     alt="Visualization ${vizId}">
+            `;
+        }
+    }
+
+    updateVisualizationError(vizId, error) {
+        const placeholder = document.querySelector(`#viz-${vizId} .loading-placeholder`);
+        if (placeholder) {
+            placeholder.innerHTML = `
+                <div style="background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 5px; padding: 20px; text-align: center; color: #721c24;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 1.5rem; margin-bottom: 10px;"></i><br>
+                    Greška pri generisanju slike ${vizId}: ${error}
+                </div>
+            `;
+        }
     }
 
     createFullReportHTML() {
@@ -2255,7 +2480,7 @@ async function generatePDFReport() {
             tempContainer.innerHTML = `
                 <div style="max-width: 800px; margin: 0 auto; font-family: Arial, sans-serif; padding: 20px;">
                     <header style="text-align: center; margin-bottom: 40px; border-bottom: 2px solid #2c3e50; padding-bottom: 20px;">
-                        <h1 style="color: #2c3e50; margin-bottom: 10px;">EKG Analysis Report v2.8</h1>
+                        <h1 style="color: #2c3e50; margin-bottom: 10px;">EKG Analysis Report v2.9</h1>
                         <p style="color: #7f8c8d;">Generated: ${new Date().toLocaleString()}</p>
                     </header>
                     
@@ -2276,7 +2501,7 @@ async function generatePDFReport() {
                     ` : ''}
                     
                     <footer style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ccc; text-align: center; font-size: 12px; color: #777;">
-                        Generated by EKG Analysis Application v2.8 - Master Thesis Implementation
+                        Generated by EKG Analysis Application v2.9 - Master Thesis Implementation
                     </footer>
                 </div>
             `;
@@ -2321,7 +2546,7 @@ async function generatePDFReport() {
         
         // Save the PDF
         const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-        doc.save(`EKG_Analysis_Report_v2.8_${timestamp}.pdf`);
+        doc.save(`EKG_Analysis_Report_v2.9_${timestamp}.pdf`);
         
         // Show success message
         button.innerHTML = '<i class="fas fa-check"></i> Report Generated!';
@@ -2382,3 +2607,47 @@ async function generatePDFReport() {
 document.addEventListener('DOMContentLoaded', () => {
     window.ekgAnalyzer = new EKGAnalyzer();
 });
+
+// Helper function for lazy loading large images - FIX for broken pipe
+window.loadLazyImage = function(key) {
+    console.log(`Loading lazy image ${key}`);
+    
+    const container = document.getElementById(`lazy-image-${key}`);
+    if (!container) {
+        console.error(`Container for lazy image ${key} not found`);
+        return;
+    }
+    
+    const imageData = window.lazyImages && window.lazyImages[key];
+    if (!imageData) {
+        console.error(`Image data for ${key} not found`);
+        container.innerHTML = "<p style=\"color: red;\">Greška: Slika nije pronađena</p>";
+        return;
+    }
+    
+    // Show loading spinner
+    container.innerHTML = `
+        <div style="padding: 40px;">
+            <i class="fas fa-spinner fa-spin" style="font-size: 48px; color: #007bff; margin-bottom: 15px;"></i>
+            <p style="color: #007bff;">Učitava sliku...</p>
+        </div>
+    `;
+    
+    // Load image after short delay to prevent broken pipe
+    setTimeout(() => {
+        try {
+            container.innerHTML = `
+                <img src="data:image/png;base64,${imageData}" 
+                     style="max-width: 100%; border: 2px solid #ddd; border-radius: 8px;" 
+                     alt="Thesis visualization ${key}"
+                     loading="lazy">
+            `;
+            console.log(`✅ Lazy image ${key} loaded successfully`);
+        } catch (error) {
+            console.error(`❌ Error loading lazy image ${key}:`, error);
+            container.innerHTML = "<p style=\"color: red;\">Greška pri učitavanju slike</p>";
+        }
+    }, 500);
+};
+
+console.log("🔧 Broken pipe fix helper functions loaded");

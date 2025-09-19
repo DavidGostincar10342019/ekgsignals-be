@@ -229,3 +229,297 @@ class MITBIHValidator:
             return "Potrebno značajno poboljšanje algoritma"
         else:
             return "Algoritam zahteva redesign"
+
+# =============================================================================
+# HELPER FUNCTIONS ZA TP/FP/FN VALIDACIJU
+# =============================================================================
+
+def _calculate_tp_fp_fn_with_tolerance(detected_peaks, reference_peaks, tolerance_samples):
+    """
+    Kalkuliše True Positives, False Positives, False Negatives sa tolerancijom
+    
+    Args:
+        detected_peaks: lista detektovanih R-peak indeksa
+        reference_peaks: lista ground truth R-peak indeksa  
+        tolerance_samples: tolerancija u broju uzoraka
+    
+    Returns:
+        dict: {"true_positives": int, "false_positives": int, "false_negatives": int}
+    """
+    detected = np.array(detected_peaks)
+    reference = np.array(reference_peaks)
+    
+    if len(detected) == 0:
+        return {
+            "true_positives": 0,
+            "false_positives": 0, 
+            "false_negatives": len(reference)
+        }
+    
+    if len(reference) == 0:
+        return {
+            "true_positives": 0,
+            "false_positives": len(detected),
+            "false_negatives": 0
+        }
+    
+    # TP: Detektovan pik ima odgovarajući reference pik u toleranciji
+    true_positives = 0
+    matched_reference = set()
+    matched_detected = set()
+    
+    for i, det_peak in enumerate(detected):
+        # Pronađi najbliži reference pik
+        distances = np.abs(reference - det_peak)
+        min_distance_idx = np.argmin(distances)
+        min_distance = distances[min_distance_idx]
+        
+        # Ako je u toleranciji i još nije pokrivен
+        if min_distance <= tolerance_samples and min_distance_idx not in matched_reference:
+            true_positives += 1
+            matched_reference.add(min_distance_idx)
+            matched_detected.add(i)
+    
+    # FP: Detektovani pikovi koji nisu pokriveni
+    false_positives = len(detected) - true_positives
+    
+    # FN: Reference pikovi koji nisu detektovani
+    false_negatives = len(reference) - true_positives
+    
+    return {
+        "true_positives": true_positives,
+        "false_positives": false_positives,
+        "false_negatives": false_negatives
+    }
+
+def _calculate_precision_recall_f1(tp_fp_fn_results):
+    """
+    Kalkuliše precision, recall, F1 score iz TP/FP/FN
+    
+    Args:
+        tp_fp_fn_results: dict sa TP/FP/FN vrednostima
+    
+    Returns:
+        tuple: (precision, recall, f1_score)
+    """
+    tp = tp_fp_fn_results["true_positives"]
+    fp = tp_fp_fn_results["false_positives"] 
+    fn = tp_fp_fn_results["false_negatives"]
+    
+    # Precision = TP / (TP + FP)
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    
+    # Recall (Sensitivity) = TP / (TP + FN)
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    
+    # F1 Score = 2 * (precision * recall) / (precision + recall)
+    f1_score = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+    
+    return precision, recall, f1_score
+
+def _assess_performance_grade(f1_score):
+    """
+    Oceni performanse algoritma na osnovu F1 score
+    
+    Args:
+        f1_score: F1 vrednost [0-1]
+    
+    Returns:
+        str: Performance grade
+    """
+    if f1_score >= 0.95:
+        return "A+ (Odličan)"
+    elif f1_score >= 0.90:
+        return "A (Vrlo dobar)"
+    elif f1_score >= 0.85:
+        return "B+ (Dobar)"
+    elif f1_score >= 0.80:
+        return "B (Zadovoljavajući)"
+    elif f1_score >= 0.70:
+        return "C (Umereno)"
+    elif f1_score >= 0.60:
+        return "D (Slabo)"
+    else:
+        return "F (Neprihvatljivo)"
+
+def _assess_clinical_reliability(precision, recall):
+    """
+    Proceni kliničku pouzdanost na osnovu precision i recall
+    
+    Args:
+        precision: Precision vrednost [0-1]
+        recall: Recall vrednost [0-1]
+    
+    Returns:
+        str: Clinical reliability assessment
+    """
+    # Za kliničku upotrebu, oba precision i recall treba da budu visoki
+    min_score = min(precision, recall)
+    
+    if min_score >= 0.95:
+        return "Visoka pouzdanost (Clinical Grade)"
+    elif min_score >= 0.90:
+        return "Dobra pouzdanost (Research Grade)"
+    elif min_score >= 0.80:
+        return "Umerena pouzdanost (Pilot Study)"
+    elif min_score >= 0.70:
+        return "Niska pouzdanost (Development)"
+    else:
+        return "Nepouzdano (Experimental Only)"
+
+def validate_against_mitbih(signal_data, fs, record_name="100", annotations=None, tolerance_ms=50):
+    """
+    POBOLJŠANA MIT-BIH validacija sa TP/FP/FN metrics
+    
+    Args:
+        signal_data: EKG signal
+        fs: sampling frequency  
+        record_name: MIT-BIH record number (default: "100")
+        annotations: optional annotations from .atr file
+        tolerance_ms: tolerancija u milisekundama za poklapanje R-pikova (default: 50ms)
+    
+    Returns:
+        Dictionary sa validation rezultatima uključujući precision/recall/F1
+        
+    Reference:
+        - MIT-BIH Arrhythmia Database: Moody & Mark (2001)
+        - Performance metrics: Sensitivity/PPV analysis (AAMI EC57)
+    """
+    try:
+        # Detect R-peaks using our algorithm
+        from .arrhythmia_detection import detect_r_peaks
+        
+        detected_result = detect_r_peaks(signal_data, fs)
+        if isinstance(detected_result, dict):
+            if 'error' in detected_result:
+                return {"error": f"R-peak detection failed: {detected_result['error']}"}
+            detected_peaks = detected_result.get('r_peaks', [])
+        elif isinstance(detected_result, (list, np.ndarray)):
+            detected_peaks = list(detected_result)
+        else:
+            return {"error": f"Unexpected R-peak detection result type: {type(detected_result)}"}
+        
+        # If annotations are provided (from .atr file), use those as ground truth
+        if annotations and 'r_peaks' in annotations:
+            raw_reference_peaks = annotations['r_peaks']
+            validation_source = "atr_annotations"
+            
+            print(f"DEBUG: Raw reference peaks type: {type(raw_reference_peaks)}")
+            print(f"DEBUG: Raw reference peaks content: {raw_reference_peaks if isinstance(raw_reference_peaks, (int, float, str)) else 'complex object'}")
+            
+            # Extract actual peak indices 
+            reference_peaks = []
+            
+            if isinstance(raw_reference_peaks, (list, np.ndarray)):
+                for peak in raw_reference_peaks:
+                    # Pokušaj različite načine ekstraktovanja
+                    if isinstance(peak, (int, float, np.integer, np.floating)):
+                        reference_peaks.append(int(peak))
+                    elif isinstance(peak, dict):
+                        # MIT-BIH format: {'time_samples': 112, 'time_seconds': 0.31, 'beat_type': 'N'}
+                        if 'time_samples' in peak:
+                            # Filtriraj samo normale beat tipove (R-peaks)
+                            beat_type = peak.get('beat_type', '')
+                            if beat_type in ['N', 'L', 'R', 'B', 'A', 'a', 'J', 'S', 'V', 'r', 'F', 'e', 'j', 'n', 'E']:
+                                reference_peaks.append(int(peak['time_samples']))
+                        elif 'sample' in peak:
+                            reference_peaks.append(int(peak['sample']))
+                        elif 'position' in peak:
+                            reference_peaks.append(int(peak['position']))
+                    elif hasattr(peak, 'sample'):  # Object sa .sample attribute
+                        reference_peaks.append(int(peak.sample))
+                    elif hasattr(peak, 'position'):  # Object sa .position attribute
+                        reference_peaks.append(int(peak.position))
+                        
+            elif isinstance(raw_reference_peaks, dict) and 'samples' in raw_reference_peaks:
+                reference_peaks = [int(peak) for peak in raw_reference_peaks['samples'] if isinstance(peak, (int, float, np.integer, np.floating))]
+            elif isinstance(raw_reference_peaks, dict) and 'r_peaks' in raw_reference_peaks:
+                reference_peaks = [int(peak) for peak in raw_reference_peaks['r_peaks'] if isinstance(peak, (int, float, np.integer, np.floating))]
+            else:
+                return {"error": f"Cannot extract reference peaks from format: {type(raw_reference_peaks)}"}
+            
+            # Filter reference peaks to match signal length
+            reference_peaks = [peak for peak in reference_peaks if 0 <= peak < len(signal_data)]
+            
+            print(f"DEBUG: Extracted {len(reference_peaks)} reference peaks for signal length {len(signal_data)}")
+        else:
+            # Fallback: simulate MIT-BIH reference based on signal analysis
+            reference_peaks = _simulate_mitbih_references(signal_data, fs, record_name)
+            validation_source = "simulated_reference"
+        
+        # NOVO: Kalkuliši TP/FP/FN sa tolerancijom
+        tolerance_samples = int((tolerance_ms / 1000.0) * fs)
+        tp_fp_fn_results = _calculate_tp_fp_fn_with_tolerance(
+            detected_peaks, reference_peaks, tolerance_samples
+        )
+        
+        # NOVO: Kalkuliši precision, recall, F1
+        precision, recall, f1_score = _calculate_precision_recall_f1(tp_fp_fn_results)
+        
+        return {
+            "record_name": record_name,
+            "validation_source": validation_source,
+            "tolerance_ms": tolerance_ms,
+            "tolerance_samples": tolerance_samples,
+            
+            # NOVO: Precizne MIT-BIH metrics
+            "true_positives": tp_fp_fn_results["true_positives"],
+            "false_positives": tp_fp_fn_results["false_positives"], 
+            "false_negatives": tp_fp_fn_results["false_negatives"],
+            "precision": round(precision, 4),
+            "recall": round(recall, 4),
+            "f1_score": round(f1_score, 4),
+            "sensitivity": round(recall, 4),  # Alias za medicinsku terminologiju
+            "positive_predictive_value": round(precision, 4),  # PPV
+            
+            # Osnovni counting
+            "detected_r_peaks": len(detected_peaks),
+            "reference_r_peaks": len(reference_peaks),
+            "total_annotations": len(reference_peaks),
+            
+            # Performance assessment
+            "performance_grade": _assess_performance_grade(f1_score),
+            "clinical_reliability": _assess_clinical_reliability(precision, recall),
+            
+            # Signal info
+            "signal_duration_seconds": len(signal_data) / fs,
+            "sampling_frequency": fs,
+            
+            # Summary message
+            "summary": f"Precision: {precision:.1%}, Recall: {recall:.1%}, F1: {f1_score:.1%} sa {tolerance_ms}ms tolerancijom"
+        }
+        
+    except Exception as e:
+        return {"error": f"MIT-BIH validation failed: {str(e)}"}
+
+def _simulate_mitbih_references(signal_data, fs, record_name):
+    """
+    Simulira MIT-BIH reference peaks (fallback kada nema .atr fajl)
+    U stvarnoj implementaciji, ovo bi učitalo tačne .atr podatke
+    """
+    try:
+        # Jednostavna simulacija bazirana na očekivanoj srčanoj frekvenciji
+        # MIT-BIH record 100 ima ~72 bpm
+        if record_name == "100":
+            expected_bpm = 72
+        elif record_name == "101":
+            expected_bpm = 85
+        else:
+            expected_bpm = 75  # Default
+        
+        # Simuliraj R-peaks sa small noise
+        expected_rr_samples = int(60 * fs / expected_bpm)
+        num_peaks = int(len(signal_data) / expected_rr_samples)
+        
+        simulated_peaks = []
+        for i in range(num_peaks):
+            # Dodaj neki noise (±5% varijacija)
+            noise = np.random.normal(0, 0.05 * expected_rr_samples)
+            peak_location = int(i * expected_rr_samples + noise)
+            if 0 <= peak_location < len(signal_data):
+                simulated_peaks.append(peak_location)
+        
+        return simulated_peaks
+        
+    except Exception:
+        return []

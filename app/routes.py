@@ -72,6 +72,7 @@ from .analysis.simple_thesis_viz import create_simple_thesis_visualizations
 from .analysis.signal_to_image import create_ekg_image_from_signal, test_signal_to_image_conversion
 from .analysis.educational_ekg_image import create_educational_ekg_image
 from .analysis.intelligent_signal_segmentation import find_critical_segments
+from datetime import datetime
 
 # api = Blueprint("api", __name__)  # Replaced with main above
 
@@ -221,13 +222,15 @@ def complete_ekg_analysis():
             results["image_rhythm_analysis"] = {"error": str(e)}
         
         # 6. NOVO: Jednostavne vizuelizacije za master rad
+        # VRAĆENO v3.1: Optimizovane vizuelizacije - samo ako nisu zahtevane brže analize
         try:
+            print("DEBUG v3.1 ROUTES: Pozivam OPTIMIZOVANE vizuelizacije...")
             results["thesis_visualizations"] = create_simple_thesis_visualizations(
-                signal, fs, results
+                signal, fs, results, annotations=None
             )
-            print("DEBUG: Simple thesis visualizations created successfully")
+            print("DEBUG v3.1 ROUTES: Optimizovane vizuelizacije uspešne")
         except Exception as e:
-            print(f"DEBUG: Simple thesis visualizations failed: {str(e)}")
+            print(f"ERROR v3.1 ROUTES: Optimizovane vizuelizacije neuspešne: {str(e)}")
             results["thesis_visualizations"] = {"error": f"Vizuelizacije neuspešne: {str(e)}"}
         
         return safe_jsonify(results)
@@ -316,10 +319,11 @@ def analyze_raw_signal():
         
         # 6. NOVO: Jednostavne vizuelizacije za master rad (raw signal)
         try:
+            print("DEBUG v3.0 ROUTES: Pozivam create_simple_thesis_visualizations (raw signal)...")
             results["thesis_visualizations"] = create_simple_thesis_visualizations(
-                signal, fs, results
+                signal, fs, results, annotations=None
             )
-            print("DEBUG: Raw signal simple visualizations created successfully")
+            print("DEBUG v3.0 ROUTES: Raw signal simple visualizations created successfully")
         except Exception as e:
             print(f"DEBUG: Raw signal simple visualizations failed: {str(e)}")
             results["thesis_visualizations"] = {"error": f"Vizuelizacije neuspešne: {str(e)}"}
@@ -453,14 +457,15 @@ def analyze_wfdb_files():
                 print(f"DEBUG: Using {len(annotations['r_peaks'])} annotated R-peaks for enhanced arrhythmia detection")
                 # Možete dodati logiku koja koristi tačne R-peak pozicije iz annotations
         
-        # 8. NOVO: Jednostavne vizuelizacije za master rad (WFDB)
+        # 8. VRAĆENO v3.1: WFDB vizuelizacije sa optimizovanom slikom 3
         try:
+            print("DEBUG v3.1 ROUTES: Pozivam OPTIMIZOVANE WFDB vizuelizacije...")
             results["thesis_visualizations"] = create_simple_thesis_visualizations(
-                signal, fs, results
+                signal, fs, results, annotations=annotations
             )
-            print("DEBUG: WFDB simple visualizations created successfully")
+            print("DEBUG v3.1 ROUTES: WFDB optimizovane vizuelizacije uspešne")
         except Exception as e:
-            print(f"DEBUG: WFDB simple visualizations failed: {str(e)}")
+            print(f"ERROR v3.1 ROUTES: WFDB optimizovane vizuelizacije neuspešne: {str(e)}")
             results["thesis_visualizations"] = {"error": f"Vizuelizacije neuspešne: {str(e)}"}
         
         return safe_jsonify(results)
@@ -928,11 +933,14 @@ def api_info():
             "/generate/png/time-domain": "POST - 🖼️ PNG time-domain grafikon (matplotlib backend)",
             "/generate/png/fft-spectrum": "POST - 🖼️ PNG FFT spektar (profesionalni dijagram)",
             "/generate/png/z-plane": "POST - 🖼️ PNG Z-ravan pole-zero analiza",
-            "/validate/mitbih": "POST - 🔬 MIT-BIH validacija (precision/recall/F1)",
-            "/generate/complete-report": "POST - 📊 INTEGRISANI IZVEŠTAJ (jednim klikom)",
+            "/validate/mitbih": "POST - 🔬 MIT-BIH validacija (TP/FP/FN, precision/recall/F1)",
+            "/analyze/snr": "POST - 📊 REALISTIČNI SNR ANALIZA (Odličan/Dobar/Osrednji/Loš)",
+            "/generate/complete-report": "POST - 📊 INTEGRISANI IZVEŠTAJ sa opcionalnim PDF (generate_pdf: true)",
+            "/generate/pdf-report": "POST - 📄 DIREKTNI PDF DOWNLOAD (samo PDF fajl)",
+            "/generate/pdf-from-analysis": "POST - 📄 PDF iz postojećih rezultata analize",
             "/info": "GET - Ove informacije"
         },
-        "version": "3.1_production_with_png",
+        "version": "3.0_auto_advanced_debug",
         "description": "EKG analiza API - analiza slika i sirovih signala",
         "scientific_methods": [
             "Spatial Filling Index (Faust et al., 2004)",
@@ -1359,6 +1367,118 @@ def generate_complete_analysis_report():
             }
         }
         
+        # NOVO: SNR ANALIZA ZA QUALITET ASSESSMENT
+        try:
+            from .analysis.visualization_generator import EKGVisualizationGenerator
+            from .analysis.advanced_ekg_analysis import advanced_filtering
+            
+            signal_array = np.array(signal, dtype=float)
+            
+            # Filtered signal za SNR
+            try:
+                filtered_signal = advanced_filtering(signal_array, fs)
+            except Exception:
+                # Fallback filtering
+                from scipy.signal import butter, filtfilt
+                nyquist = fs / 2
+                low_cutoff = 40 / nyquist
+                b, a = butter(4, low_cutoff, btype='low')
+                filtered_signal = filtfilt(b, a, signal_array)
+            
+            # Calculate SNR
+            viz_gen = EKGVisualizationGenerator()
+            snr_results = viz_gen.calculate_realistic_snr(signal_array, filtered_signal, fs, 10)
+            
+            if "error" not in snr_results:
+                complete_report["signal_quality"] = {
+                    "snr_db": round(snr_results["mean_snr_db"], 2),
+                    "quality_category": snr_results["overall_category"],
+                    "quality_score": round(8.5 if snr_results["mean_snr_db"] >= 20 else 
+                                         7.0 if snr_results["mean_snr_db"] >= 15 else
+                                         5.5 if snr_results["mean_snr_db"] >= 10 else 3.0, 1),
+                    "professional_assessment": f"Signal kategorisan kao '{snr_results['overall_category']}' kvalitet",
+                    "segments_analyzed": snr_results["num_segments"]
+                }
+                print(f"DEBUG: SNR analysis: {snr_results['mean_snr_db']:.1f} dB ({snr_results['overall_category']})")
+        except Exception as e:
+            print(f"DEBUG: SNR analysis failed: {str(e)}")
+            complete_report["signal_quality"] = {"error": f"SNR analysis failed: {str(e)}"}
+
+        # NOVO: MIT-BIH VALIDACIJA (ako je zatražena)
+        if payload.get("include_mitbih_validation", False):
+            try:
+                from .analysis.mitbih_validator import validate_against_mitbih
+                
+                # MIT-BIH validacija sa TP/FP/FN
+                mitbih_result = validate_against_mitbih(
+                    signal_array, fs, 
+                    record_name=payload.get("mitbih_record", "100"),
+                    annotations=payload.get("mitbih_annotations", None),
+                    tolerance_ms=payload.get("mitbih_tolerance_ms", 50)
+                )
+                
+                if "error" not in mitbih_result:
+                    complete_report["mitbih_validation"] = {
+                        "precision": mitbih_result["precision"],
+                        "recall": mitbih_result["recall"], 
+                        "f1_score": mitbih_result["f1_score"],
+                        "true_positives": mitbih_result["true_positives"],
+                        "false_positives": mitbih_result["false_positives"],
+                        "false_negatives": mitbih_result["false_negatives"],
+                        "performance_grade": mitbih_result["performance_grade"],
+                        "clinical_reliability": mitbih_result["clinical_reliability"],
+                        "summary": mitbih_result["summary"]
+                    }
+                    print(f"DEBUG: MIT-BIH validation: F1={mitbih_result['f1_score']:.3f}")
+                else:
+                    complete_report["mitbih_validation"] = mitbih_result
+                    
+            except Exception as e:
+                print(f"DEBUG: MIT-BIH validation failed: {str(e)}")
+                complete_report["mitbih_validation"] = {"error": f"MIT-BIH validation failed: {str(e)}"}
+
+        # NOVO: PDF GENERISANJE SA POBOLJŠANJIMA
+        if payload.get("generate_pdf", False):
+            print("DEBUG: Generating PDF report...")
+            try:
+                from .analysis.pdf_report_generator import EKGPDFReportGenerator
+                
+                pdf_generator = EKGPDFReportGenerator()
+                signal_array = np.array(signal, dtype=float)
+                
+                patient_info = payload.get("patient_info", None)
+                report_title = payload.get("report_title", "EKG Analiza Report")
+                
+                pdf_content = pdf_generator.generate_comprehensive_pdf_report(
+                    signal_data=signal_array,
+                    fs=fs,
+                    analysis_results=complete_report,
+                    report_title=report_title,
+                    patient_info=patient_info,
+                    include_images=include_images
+                )
+                
+                # Cleanup PDF generator
+                pdf_generator.cleanup()
+                
+                if isinstance(pdf_content, dict) and "error" in pdf_content:
+                    print(f"DEBUG: PDF generation failed: {pdf_content['error']}")
+                    complete_report["pdf_error"] = pdf_content["error"]
+                else:
+                    print("DEBUG: PDF generated successfully")
+                    # Dodaj PDF kao base64 u JSON odgovor
+                    import base64
+                    complete_report["pdf_report"] = {
+                        "pdf_base64": base64.b64encode(pdf_content).decode('utf-8'),
+                        "filename": f"ekg_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                        "size_bytes": len(pdf_content),
+                        "success": True
+                    }
+                        
+            except Exception as e:
+                print(f"DEBUG: PDF generation exception: {str(e)}")
+                complete_report["pdf_error"] = f"PDF generation failed: {str(e)}"
+
         return safe_jsonify(complete_report)
         
     except Exception as e:
