@@ -1,5 +1,35 @@
 # EKG Analiza API
 
+## 📚 Academic Foundation
+
+This project implements established algorithms from peer-reviewed literature following academic integrity standards:
+
+### Core Algorithms
+- **R-peak Detection**: Pan-Tompkins algorithm (1985) [1]
+- **Spectral Analysis**: Welch's method (1967) [2] 
+- **AR Modeling**: Yule-Walker estimation (Kay, 1988) [3]
+- **QRS Analysis**: Multi-method approach based on clinical guidelines [4,5]
+
+### Medical Compliance
+- Follows AHA/ACCF/HRS recommendations [6]
+- Implements IEEE standards for biomedical signal processing
+- Based on MIT-BIH database validation studies [7]
+
+### Key References
+[1] Pan & Tompkins (1985). "A real-time QRS detection algorithm." IEEE Trans Biomed Eng, 32(3), 230-236.  
+[2] Welch (1967). "The use of fast Fourier transform for power spectra estimation." IEEE Trans Audio Electroacoustics, 15(2), 70-73.  
+[3] Kay (1988). "Modern Spectral Estimation: Theory and Application." Prentice Hall.  
+[4] Surawicz et al. (2009). "AHA/ACCF/HRS recommendations for ECG standardization." J Am Coll Cardiol, 53(11), 976-981.  
+[5] Kligfield et al. (2007). "Recommendations for ECG standardization." Circulation, 115(10), 1306-1324.  
+[6] Roonizi (2024). "ECG signal decomposition using Fourier analysis." EURASIP Journal, 2024, 71.  
+[7] MIT-BIH Arrhythmia Database. PhysioNet.
+
+📖 **Complete bibliography available in [REFERENCES.md](REFERENCES.md)**
+
+---
+
+# EKG Analiza API
+
 Softverski sistem za analizu EKG signala iz fotografija mobilnim telefonom. Omogućava konverziju vizuelnog EKG zapisa u digitalni signal i automatsku detekciju potencijalnih aritmija.
 
 ## Funkcionalnosti

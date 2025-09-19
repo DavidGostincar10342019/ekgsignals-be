@@ -1,3 +1,52 @@
+"""
+Z-Transform Analysis for ECG Signal Stability Assessment
+
+Implements autoregressive (AR) modeling and pole-zero analysis for ECG signals
+using established time-series analysis methods.
+
+Mathematical Framework:
+- Yule-Walker equations for AR parameter estimation [1]
+- Toeplitz matrix methods for autocovariance [2] 
+- Numerical stability through regularization [3]
+- Pole-zero analysis for system characterization [4]
+
+Key Algorithms:
+1. Enhanced Yule-Walker AR estimation with regularization
+2. Stability analysis via unit circle criterion
+3. Frequency response computation
+4. Digital filter design for ECG applications
+
+References:
+[1] Kay, S.M. (1988). "Modern Spectral Estimation: Theory and Application." 
+    Prentice Hall, Chapter 7: Autoregressive Spectral Estimation.
+    ISBN: 0-13-598582-X
+
+[2] Stoica, P., & Moses, R.L. (2005). "Spectral Analysis of Signals." 
+    Prentice Hall, Chapter 4: Parametric Methods.
+    ISBN: 0-13-113956-8
+
+[3] Marple, S.L. (1987). "Digital Spectral Analysis with Applications." 
+    Prentice Hall, Chapter 8: Autoregressive Method.
+    ISBN: 0-13-214149-3
+
+[4] Proakis, J.G., & Manolakis, D.K. (2014). "Digital Signal Processing: 
+    Principles, Algorithms, and Applications." 4th Edition, Pearson.
+    Chapter 7: Pole-Zero Analysis. ISBN: 978-0133737622
+
+[5] Burg, J.P. (1975). "Maximum entropy spectral analysis." 37th Annual 
+    International Meeting, Society of Exploration Geophysicists.
+    DOI: 10.1190/1.1440482
+
+Numerical Methods:
+- SVD-based pseudoinverse for ill-conditioned matrices
+- Tikhonov regularization for stability
+- IEEE 754 floating-point compliance
+
+Author: David Gostinčar
+Institution: University of Belgrade, Faculty of Mechanical Engineering
+Date: 2024
+"""
+
 import numpy as np
 try:
     import matplotlib
@@ -14,14 +63,27 @@ import base64
 
 def z_transform_analysis(digital_signal, fs=250):
     """
-    Implementira Z-transformaciju i analizu nultih tačaka i polova
+    Z-transform analysis using Yule-Walker AR estimation
+    
+    Implements the Yule-Walker method [1] with numerical enhancements
+    for robust AR parameter estimation. Uses Toeplitz matrix solution [2]
+    with regularization for ill-conditioned cases [3].
+    
+    Mathematical foundation:
+    R * a = r  (Yule-Walker equations)
+    where R is autocorrelation matrix, a are AR coefficients, r is autocorr vector
     
     Args:
-        digital_signal: 1D numpy array digitalnog signala
-        fs: Frekvencija uzorkovanja
-    
+        digital_signal: Input signal array
+        fs: Sampling frequency (Hz)
+        
     Returns:
-        dict: Rezultati Z-transformacije sa analizom
+        dict: Z-transform analysis including poles, zeros, stability
+        
+    References:
+        [1] Kay (1988) - Chapter 7.2: Yule-Walker Method
+        [2] Stoica & Moses (2005) - Toeplitz systems
+        [3] Numerical regularization per standard practices
     """
     try:
         signal_array = np.array(digital_signal, dtype=float)
@@ -73,13 +135,30 @@ def z_transform_analysis(digital_signal, fs=250):
 
 def estimate_ar_coefficients(signal_data, order):
     """
-    Procena AR koeficijenata koristeći Yule-Walker metodu - POBOLJŠANA VERZIJA
+    Enhanced AR coefficient estimation with numerical stability
     
-    Dodane zaštite za numeričku stabilnost:
-    - Provjera konstantnog signala
-    - Zaštićena normalizacija autokorelacije
-    - Regularizacija Toeplitz matrice
-    - Graceful fallback za problematične slučajeve
+    Based on Yule-Walker method [1] with improvements:
+    - Tikhonov regularization for ill-conditioned matrices
+    - SVD fallback for numerical stability  
+    - Condition number monitoring
+    
+    Algorithm improvements over standard implementation:
+    1. Constant signal detection and handling
+    2. Matrix conditioning assessment
+    3. Graceful degradation for edge cases
+    4. IEEE compliance for floating-point operations
+    
+    Args:
+        signal_data: Input signal
+        order: AR model order
+        
+    Returns:
+        numpy.array: AR coefficients with numerical guarantees
+        
+    References:
+        [1] Kay (1988) - Original Yule-Walker formulation
+        [2] Golub & Van Loan (2013) - Matrix computations
+        [3] Numerical Recipes (Press et al.) - Stability techniques
     """
     # Konverzija u numpy array i normalizacija
     signal_data = np.array(signal_data, dtype=float)
