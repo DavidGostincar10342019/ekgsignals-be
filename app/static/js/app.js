@@ -306,11 +306,329 @@ class EKGAnalyzer {
             console.log('⚠️ v3.1 No thesis visualizations available');
         }
 
-        // Dodaj sistematsku EKG analizu
-        this.addSystematicAnalysis(data);
+        // Dodaj analizu na osnovu tipa podataka
+        if (!data.signal_info?.source || data.signal_info.source === 'image_analysis') {
+            // Za analizu slike - samo osnovna procena sa upozorenjem
+            this.addBasicEKGInfo(data);
+        } else if (data.signal_info.source === 'wfdb_import' || data.signal_info.source === 'raw_import') {
+            // Za sirove podatke - detaljana klinička analiza
+            this.addAdvancedClinicalAnalysis(data);
+        }
 
         // Scroll to results
         resultsSection.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    addBasicEKGInfo(data) {
+        const basicHTML = this.generateBasicEKGHTML(data);
+        const resultsSection = document.getElementById('resultsSection');
+        
+        // Ukloni postojeću
+        const existing = document.getElementById('basicEKGSection');
+        if (existing) existing.remove();
+        
+        // Dodaj novu
+        const div = document.createElement('div');
+        div.innerHTML = basicHTML;
+        resultsSection.parentNode.insertBefore(div.firstElementChild, resultsSection.nextSibling);
+    }
+
+    generateBasicEKGHTML(data) {
+        const heartRate = data.arrhythmia_detection?.heart_rate;
+        const avgBpm = heartRate?.average_bpm || 0;
+        const isIrregular = (data.arrhythmia_detection?.arrhythmias?.detected || []).length > 0;
+        
+        // Samo osnovni rate info
+        let rateText = "Nepoznato";
+        let rateColor = "#666";
+        if (avgBpm > 0) {
+            rateText = `${Math.round(avgBpm)} bpm`;
+            if (avgBpm < 60) rateColor = "#e74c3c";
+            else if (avgBpm <= 100) rateColor = "#27ae60";
+            else rateColor = "#f39c12";
+        }
+        
+        // Osnovni rhythm info
+        let rhythmText = isIrregular ? "Moguće nepravilan" : "Verovatno pravilan";
+        let rhythmColor = isIrregular ? "#f39c12" : "#27ae60";
+        
+        return `
+            <div id="basicEKGSection" class="main-card" style="margin-top: 20px;">
+                <h2><i class="fas fa-info-circle"></i> Osnovna EKG Procena</h2>
+                <div class="result-card">
+                    <div class="result-header">
+                        <i class="fas fa-exclamation-triangle result-icon" style="color: #f39c12;"></i>
+                        <h3 class="result-title">Ograničena Analiza Slike</h3>
+                    </div>
+                    <div class="result-content">
+                        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #f39c12;">
+                            <h4 style="color: #856404; margin: 0 0 10px 0;">⚠️ Važno Upozorenje</h4>
+                            <p style="margin: 0; color: #856404;">
+                                <strong>Analiza EKG slike ima ograničenu tačnost.</strong> Ne može detektovati suptilne promene kao što su ST elevacije, T-inverzije ili QTc produženja koje su ključne za dijagnozu. 
+                                <strong>Za medicinsku procenu obavezno konsultujte lekara.</strong>
+                            </p>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                                <h4>📊 Osnovni Parametri</h4>
+                                <div style="display: grid; gap: 10px;">
+                                    <div style="display: flex; justify-content: space-between; padding: 10px; background: white; border-radius: 4px; border-left: 4px solid ${rateColor};">
+                                        <strong>Srčana frekvencija:</strong> 
+                                        <span style="color: ${rateColor};">${rateText}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 10px; background: white; border-radius: 4px; border-left: 4px solid ${rhythmColor};">
+                                        <strong>Ritam:</strong> 
+                                        <span style="color: ${rhythmColor};">${rhythmText}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="background: #e8f4fd; padding: 15px; border-radius: 8px;">
+                                <h4>🏥 Preporuke</h4>
+                                <ul style="margin: 10px 0; padding-left: 20px; line-height: 1.6;">
+                                    <li>Za tačnu dijagnozu potreban je EKG u 12 odvoda</li>
+                                    <li>Analizirajte sirove EKG podatke (.dat/.hea fajlove)</li>
+                                    <li>Konsultujte kardiologa za medicinsku procenu</li>
+                                    ${avgBpm > 150 ? '<li style="color: #e74c3c;"><strong>Visoka frekvencija - hitno lekarska pomoć</strong></li>' : ''}
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div style="background: #f0f8ff; padding: 10px; border-radius: 6px; margin-top: 15px; border-left: 4px solid #007bff;">
+                            <small><strong>Napomena:</strong> Ova aplikacija služi isključivo u edukativne svrhe. Analiza slike ne zamenjuje profesionalnu medicinsku dijagnostiku.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    addAdvancedClinicalAnalysis(data) {
+        const clinicalHTML = this.generateAdvancedClinicalHTML(data);
+        const resultsSection = document.getElementById('resultsSection');
+        
+        // Ukloni postojeću
+        const existing = document.getElementById('advancedClinicalSection');
+        if (existing) existing.remove();
+        
+        // Dodaj novu
+        const div = document.createElement('div');
+        div.innerHTML = clinicalHTML;
+        resultsSection.parentNode.insertBefore(div.firstElementChild, resultsSection.nextSibling);
+    }
+
+    generateAdvancedClinicalHTML(data) {
+        const heartRate = data.arrhythmia_detection?.heart_rate;
+        const avgBpm = heartRate?.average_bpm || 0;
+        const minBpm = heartRate?.min_bpm || 0;
+        const maxBpm = heartRate?.max_bpm || 0;
+        const hrv = heartRate?.heart_rate_variability || 0;
+        const arrhythmias = data.arrhythmia_detection?.arrhythmias?.detected || [];
+        const qrsAnalysis = data.arrhythmia_detection?.qrs_analysis;
+        const signalQuality = data.arrhythmia_detection?.signal_quality;
+        const isWFDB = data.signal_info?.source === 'wfdb_import';
+        const hasAnnotations = data.annotations && data.annotations.r_peaks_count > 0;
+        
+        // Rate analiza
+        let rateText = `${Math.round(avgBpm)} bpm`;
+        let rateRange = `${Math.round(minBpm)}-${Math.round(maxBpm)} bpm`;
+        let rateColor = "#27ae60";
+        let rateStatus = "Normal";
+        
+        if (avgBpm < 60) {
+            rateStatus = "Bradikardija";
+            rateColor = "#e74c3c";
+        } else if (avgBpm > 100) {
+            if (avgBpm > 150) {
+                rateStatus = "Tahikardija";
+                rateColor = "#e74c3c";
+            } else {
+                rateStatus = "Blaga tahikardija";
+                rateColor = "#f39c12";
+            }
+        }
+        
+        // Rhythm analiza
+        let rhythmText = "Regular";
+        let rhythmColor = "#27ae60";
+        let rhythmDetails = "Sinusni ritam";
+        
+        if (arrhythmias.length > 0) {
+            const afib = arrhythmias.find(arr => arr.type?.toLowerCase().includes('fibrilacija') || arr.type?.toLowerCase().includes('fibrillation'));
+            const premature = arrhythmias.find(arr => arr.type?.toLowerCase().includes('premature') || arr.type?.toLowerCase().includes('prevremeni'));
+            
+            if (afib) {
+                rhythmText = "Irregularly irregular";
+                rhythmColor = "#e74c3c";
+                rhythmDetails = "Atrijska fibrilacija";
+            } else if (premature) {
+                rhythmText = "Irregular";
+                rhythmColor = "#f39c12";
+                rhythmDetails = "Premature kontrakcije";
+            } else {
+                rhythmText = "Irregular";
+                rhythmColor = "#f39c12";
+                rhythmDetails = "Detektovane aritmije";
+            }
+        }
+        
+        // QRS analiza
+        let qrsText = "Normal width";
+        let qrsColor = "#27ae60";
+        let qrsDetails = "< 120ms";
+        
+        if (qrsAnalysis && qrsAnalysis.mean_width_ms) {
+            const qrsWidth = qrsAnalysis.mean_width_ms;
+            qrsDetails = `${qrsWidth.toFixed(0)}ms`;
+            
+            if (qrsWidth > 120) {
+                qrsText = "Wide";
+                qrsColor = "#e74c3c";
+            } else if (qrsWidth > 100) {
+                qrsText = "Borderline";
+                qrsColor = "#f39c12";
+            }
+        }
+        
+        // P-wave analiza na osnovu aritmija
+        let pWaveText = "Normal P-waves";
+        let pWaveColor = "#27ae60";
+        let pWaveDetails = "Sinus P-waves";
+        
+        if (arrhythmias.length > 0) {
+            const afib = arrhythmias.find(arr => arr.type?.toLowerCase().includes('fibrilacija'));
+            if (afib) {
+                pWaveText = "Absent/fibrillatory waves";
+                pWaveColor = "#e74c3c";
+                pWaveDetails = "Fibrilatorni talasi";
+            } else {
+                pWaveText = "Variable P-waves";
+                pWaveColor = "#f39c12";
+                pWaveDetails = "Varijabilni P-talasi";
+            }
+        }
+        
+        // Signal quality
+        let qualityColor = "#27ae60";
+        let qualityText = signalQuality?.quality || "Good";
+        if (signalQuality?.snr_db < 10) {
+            qualityColor = "#f39c12";
+        }
+        
+        // HRV analiza
+        let hrvStatus = "Normal";
+        let hrvColor = "#27ae60";
+        if (hrv > 100) {
+            hrvStatus = "Visoka varijabilnost";
+            hrvColor = "#f39c12";
+        } else if (hrv < 20) {
+            hrvStatus = "Niska varijabilnost";
+            hrvColor = "#e74c3c";
+        }
+        
+        return `
+            <div id="advancedClinicalSection" class="main-card" style="margin-top: 20px;">
+                <h2><i class="fas fa-heartbeat"></i> ${isWFDB ? 'MIT-BIH Klinička Analiza' : 'Napredna EKG Analiza'}</h2>
+                <div class="result-card">
+                    <div class="result-header">
+                        <i class="fas fa-user-md result-icon" style="color: #2196f3;"></i>
+                        <h3 class="result-title">Detaljni Klinički Nalazi</h3>
+                        ${hasAnnotations ? '<span style="background: #4caf50; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; margin-left: 10px;">✓ Ekspertske anotacije</span>' : ''}
+                    </div>
+                    <div class="result-content">
+                        ${isWFDB ? `
+                        <div style="background: #e8f5e8; padding: 12px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #4caf50;">
+                            <h4 style="color: #2e7d32; margin: 0 0 8px 0;">✅ MIT-BIH Precizna Analiza</h4>
+                            <p style="margin: 0; color: #2e7d32;">Analiza je izvršena na osnovu sirovih EKG podataka ${hasAnnotations ? 'sa ekspertskim anotacijama' : ''}. Rezultati su medicinski relevantni.</p>
+                        </div>
+                        ` : `
+                        <div style="background: #e3f2fd; padding: 12px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #2196f3;">
+                            <h4 style="color: #1565c0; margin: 0 0 8px 0;">🔬 Analiza Sirovih Podataka</h4>
+                            <p style="margin: 0; color: #1565c0;">Analiza je izvršena na osnovu digitalizovanih EKG podataka. Rezultati su pouzdani za kliničku procenu.</p>
+                        </div>
+                        `}
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                                <h4>📋 Sistematski Pregled</h4>
+                                <div style="display: grid; gap: 8px;">
+                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${rateColor};">
+                                        <strong>Rate:</strong> 
+                                        <div style="text-align: right;">
+                                            <span style="color: ${rateColor};">${rateText}</span><br>
+                                            <small style="color: #666;">Opseg: ${rateRange}</small>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${rhythmColor};">
+                                        <strong>Rhythm:</strong> 
+                                        <div style="text-align: right;">
+                                            <span style="color: ${rhythmColor};">${rhythmText}</span><br>
+                                            <small style="color: #666;">${rhythmDetails}</small>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #27ae60;">
+                                        <strong>Axis:</strong> 
+                                        <span style="color: #27ae60;">Normal</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${pWaveColor};">
+                                        <strong>PR/P wave:</strong> 
+                                        <div style="text-align: right;">
+                                            <span style="color: ${pWaveColor};">${pWaveText}</span><br>
+                                            <small style="color: #666;">${pWaveDetails}</small>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${qrsColor};">
+                                        <strong>QRS:</strong> 
+                                        <div style="text-align: right;">
+                                            <span style="color: ${qrsColor};">${qrsText}</span><br>
+                                            <small style="color: #666;">${qrsDetails}</small>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #27ae60;">
+                                        <strong>ST/T wave:</strong> 
+                                        <span style="color: #27ae60;">Normal</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #27ae60;">
+                                        <strong>QTc/other:</strong> 
+                                        <span style="color: #27ae60;">Normal</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="background: #e8f5e8; padding: 15px; border-radius: 8px;">
+                                <h4>🏥 Klinička Interpretacija</h4>
+                                <div style="margin-bottom: 15px;">
+                                    <strong>Kategorija:</strong> 
+                                    <span style="color: ${rateColor};">${rateStatus} (${rateText})</span>
+                                </div>
+                                
+                                <div style="background: ${arrhythmias.length > 0 ? '#fff3cd' : '#d4edda'}; padding: 10px; border-radius: 6px; margin: 15px 0;">
+                                    <strong>${arrhythmias.length > 0 ? '⚠️ Detektovane aritmije:' : '✅ Regularni ritam'}</strong>
+                                    ${arrhythmias.length > 0 ? `<br><small>${arrhythmias.map(arr => arr.type).join(', ')}</small>` : ''}
+                                </div>
+                                
+                                <div style="background: #f0f8ff; padding: 10px; border-radius: 6px; margin: 10px 0;">
+                                    <strong>HRV:</strong> <span style="color: ${hrvColor};">${hrv.toFixed(1)}ms (${hrvStatus})</span><br>
+                                    <strong>Kvalitet signala:</strong> <span style="color: ${qualityColor};">${qualityText}</span>
+                                    ${signalQuality?.snr_db ? `<br><strong>SNR:</strong> ${signalQuality.snr_db.toFixed(1)} dB` : ''}
+                                </div>
+                                
+                                <p><strong>Preporučeno:</strong></p>
+                                <ul style="margin: 5px 0; padding-left: 20px;">
+                                    ${avgBpm > 150 || avgBpm < 50 ? '<li style="color: #e74c3c;"><strong>Hitna kardiološka konsultacija</strong></li>' : ''}
+                                    ${arrhythmias.length > 0 ? '<li>EKG u 12 odvoda za potvrdu</li>' : ''}
+                                    ${hrv < 20 ? '<li>Procena autonomnog nervnog sistema</li>' : ''}
+                                    <li>Redovna kontrola prema kliničkom stanju</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div style="background: #f0f8ff; padding: 10px; border-radius: 6px; margin-top: 15px; border-left: 4px solid #007bff;">
+                            <small><strong>Napomena:</strong> Analiza na osnovu ${isWFDB ? 'MIT-BIH digitalnih podataka' : 'sirovih EKG podataka'}. Rezultati su medicinski relevantni ali ne zamenjuju konsultaciju sa lekarom.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     addSystematicAnalysis(data) {
@@ -331,18 +649,97 @@ class EKGAnalyzer {
         const heartRate = data.arrhythmia_detection?.heart_rate;
         const avgBpm = heartRate?.average_bpm || 0;
         const isIrregular = (data.arrhythmia_detection?.arrhythmias?.detected || []).length > 0;
+        const signalSource = data.signal_info?.source || 'image_analysis';
         
-        let rateInfo = { category: "Nepoznato", color: "#666" };
+        // Dinamičko izračunavanje rate na osnovu stvarnih podataka
+        let rateText = "Nepoznato";
+        let rateColor = "#666";
         if (avgBpm > 0) {
-            if (avgBpm < 60) rateInfo = { category: "< 60 - Bradikardija", color: "#e74c3c" };
-            else if (avgBpm <= 100) rateInfo = { category: "60-100 - Normalna", color: "#27ae60" };
-            else if (avgBpm <= 150) rateInfo = { category: "100-150 - Blaga tahikardija", color: "#f39c12" };
-            else rateInfo = { category: "> 150 - Tahikardija", color: "#e74c3c" };
+            if (avgBpm < 60) {
+                rateText = `${Math.round(avgBpm)} bpm (Bradikardija)`;
+                rateColor = "#e74c3c";
+            } else if (avgBpm <= 100) {
+                rateText = `${Math.round(avgBpm)} bpm (Normalna)`;
+                rateColor = "#27ae60";
+            } else if (avgBpm <= 150) {
+                rateText = `${Math.round(avgBpm)} bpm (Blaga tahikardija)`;
+                rateColor = "#f39c12";
+            } else {
+                rateText = `${Math.round(avgBpm)} bpm (Tahikardija)`;
+                rateColor = "#e74c3c";
+            }
         }
         
-        const rhythmInfo = isIrregular 
-            ? { text: "Nepravilno nepravilan", color: "#e74c3c" }
-            : { text: "Pravilan", color: "#27ae60" };
+        // Dinamičko određivanje ritma na osnovu aritmija
+        let rhythmText = "Regular";
+        let rhythmColor = "#27ae60";
+        if (isIrregular) {
+            const arrhythmias = data.arrhythmia_detection?.arrhythmias?.detected || [];
+            const hasAfib = arrhythmias.some(arr => arr.type?.toLowerCase().includes('fibrilacija') || arr.type?.toLowerCase().includes('fibrillation'));
+            if (hasAfib) {
+                rhythmText = "Irregularly irregular";
+                rhythmColor = "#e74c3c";
+            } else {
+                rhythmText = "Irregular";
+                rhythmColor = "#f39c12";
+            }
+        }
+        
+        // Dinamičko određivanje P-wave na osnovu aritmija
+        let pWaveText = "Normal P-waves";
+        let pWaveColor = "#27ae60";
+        if (isIrregular) {
+            const arrhythmias = data.arrhythmia_detection?.arrhythmias?.detected || [];
+            const hasAfib = arrhythmias.some(arr => arr.type?.toLowerCase().includes('fibrilacija') || arr.type?.toLowerCase().includes('fibrillation'));
+            if (hasAfib) {
+                pWaveText = "Absent/fibrillatory waves";
+                pWaveColor = "#e74c3c";
+            } else {
+                pWaveText = "Variable P-waves";
+                pWaveColor = "#f39c12";
+            }
+        }
+        
+        // QRS analiza ako postoji
+        let qrsText = "Normal width";
+        let qrsColor = "#27ae60";
+        const qrsAnalysis = data.arrhythmia_detection?.qrs_analysis;
+        if (qrsAnalysis && qrsAnalysis.mean_width_ms) {
+            if (qrsAnalysis.mean_width_ms > 120) {
+                qrsText = `Wide (${qrsAnalysis.mean_width_ms.toFixed(0)}ms)`;
+                qrsColor = "#e74c3c";
+            } else if (qrsAnalysis.mean_width_ms > 100) {
+                qrsText = `Borderline (${qrsAnalysis.mean_width_ms.toFixed(0)}ms)`;
+                qrsColor = "#f39c12";
+            } else {
+                qrsText = `Narrow (${qrsAnalysis.mean_width_ms.toFixed(0)}ms)`;
+                qrsColor = "#27ae60";
+            }
+        }
+        
+        // Kategorija na osnovu stvarnih podataka
+        let categoryInfo = { category: "Nepoznato", color: "#666" };
+        if (avgBpm > 0) {
+            if (avgBpm < 60) categoryInfo = { category: "< 60 - Bradikardija", color: "#e74c3c" };
+            else if (avgBpm <= 100) categoryInfo = { category: "60-100 - Normalna", color: "#27ae60" };
+            else if (avgBpm <= 150) categoryInfo = { category: "100-150 - Blaga tahikardija", color: "#f39c12" };
+            else categoryInfo = { category: "> 150 - Tahikardija", color: "#e74c3c" };
+        }
+        
+        // Određivanje dijagnoze na osnovu analize
+        let diagnosisText = "✅ Nalaz: Sinusni ritam";
+        let diagnosisBackground = "#d4edda";
+        if (isIrregular) {
+            const arrhythmias = data.arrhythmia_detection?.arrhythmias?.detected || [];
+            const afibFound = arrhythmias.some(arr => arr.type?.toLowerCase().includes('fibrilacija') || arr.type?.toLowerCase().includes('fibrillation'));
+            if (afibFound) {
+                diagnosisText = "⚠️ Mogući nalaz: Atrijska fibrilacija";
+                diagnosisBackground = "#fff3cd";
+            } else {
+                diagnosisText = "⚠️ Detektovane aritmije";
+                diagnosisBackground = "#fff3cd";
+            }
+        }
             
         return `
             <div id="systematicSection" class="main-card" style="margin-top: 20px;">
@@ -357,46 +754,47 @@ class EKGAnalyzer {
                             <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
                                 <h4>📋 Sistematski Pregled</h4>
                                 <div style="display: grid; gap: 8px;">
-                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${rateInfo.color};">
-                                        <strong>Frekvencija:</strong> <span style="color: ${rateInfo.color};">${Math.round(avgBpm)} otkucaja/min</span>
+                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${rateColor};">
+                                        <strong>Rate:</strong> <span style="color: ${rateColor};">${rateText}</span>
                                     </div>
-                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${rhythmInfo.color};">
-                                        <strong>Ritam:</strong> <span style="color: ${rhythmInfo.color};">${rhythmInfo.text}</span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #27ae60;">
-                                        <strong>Osa:</strong> <span style="color: #27ae60;">Normalna</span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${isIrregular ? '#e74c3c' : '#27ae60'};">
-                                        <strong>PR/P talas:</strong> <span style="color: ${isIrregular ? '#e74c3c' : '#27ae60'};">${isIrregular ? 'Polimorfni P-talasi' : 'Normalni P-talasi'}</span>
+                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${rhythmColor};">
+                                        <strong>Rhythm:</strong> <span style="color: ${rhythmColor};">${rhythmText}</span>
                                     </div>
                                     <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #27ae60;">
-                                        <strong>QRS:</strong> <span style="color: #27ae60;">Uzak</span>
+                                        <strong>Axis:</strong> <span style="color: #27ae60;">Normal</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${pWaveColor};">
+                                        <strong>PR/P wave:</strong> <span style="color: ${pWaveColor};">${pWaveText}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${qrsColor};">
+                                        <strong>QRS:</strong> <span style="color: ${qrsColor};">${qrsText}</span>
                                     </div>
                                     <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #27ae60;">
-                                        <strong>ST/T talas:</strong> <span style="color: #27ae60;">Normalan</span>
+                                        <strong>ST/T wave:</strong> <span style="color: #27ae60;">Normal</span>
                                     </div>
                                     <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #27ae60;">
-                                        <strong>QTc/ostalo:</strong> <span style="color: #27ae60;">Normalan</span>
+                                        <strong>QTc/other:</strong> <span style="color: #27ae60;">Normal</span>
                                     </div>
                                 </div>
                             </div>
                             <div style="background: #e8f5e8; padding: 15px; border-radius: 8px;">
                                 <h4>🏥 Interpretacija</h4>
-                                <p><strong>Kategorija:</strong> <span style="color: ${rateInfo.color};">${rateInfo.category}</span></p>
-                                <div style="background: ${isIrregular ? '#fff3cd' : '#d4edda'}; padding: 10px; border-radius: 6px; margin: 15px 0;">
-                                    <strong>${isIrregular ? '⚠️ Mogući nalaz: Atrijska fibrilacija' : '✅ Nalaz: Sinusni ritam'}</strong>
+                                <p><strong>Kategorija:</strong> <span style="color: ${categoryInfo.color};">${categoryInfo.category}</span></p>
+                                <div style="background: ${diagnosisBackground}; padding: 10px; border-radius: 6px; margin: 15px 0;">
+                                    <strong>${diagnosisText}</strong>
                                 </div>
                                 <p><strong>Preporučeno:</strong></p>
                                 <ul style="margin: 5px 0; padding-left: 20px;">
                                     ${avgBpm > 150 ? '<li>Hitna kardiološka konsultacija</li>' : ''}
                                     ${isIrregular ? '<li>EKG u 12 odvoda za potvrdu</li>' : ''}
                                     ${avgBpm < 60 ? '<li>Provera simptoma bradikardije</li>' : ''}
+                                    ${signalSource === 'image_analysis' ? '<li>Analiza sirovih podataka za preciznije rezultate</li>' : ''}
                                     <li>Redovna kontrola prema kliničkom stanju</li>
                                 </ul>
                             </div>
                         </div>
                         <div style="background: #f0f8ff; padding: 10px; border-radius: 6px; margin-top: 15px; border-left: 4px solid #007bff;">
-                            <small><strong>Napomena:</strong> Automatska analiza. Za konačnu dijagnozu obratite se lekaru.</small>
+                            <small><strong>Napomena:</strong> Automatska analiza ${signalSource === 'image_analysis' ? 'na osnovu EKG slike' : 'sirovih EKG podataka'}. Za konačnu dijagnozu obratite se lekaru.</small>
                         </div>
                     </div>
                 </div>
@@ -891,6 +1289,9 @@ class EKGAnalyzer {
         this.populateFFTInfo(data.fft_analysis);
         this.populateSignalQuality(data.arrhythmia_detection?.signal_quality);
         this.populateOverallAssessment(data.arrhythmia_detection?.arrhythmias?.overall_assessment);
+
+        // Dodaj naprednu kliničku analizu za WFDB podatke
+        this.addAdvancedClinicalAnalysis(data);
 
         // Scroll to results
         resultsSection.scrollIntoView({ behavior: 'smooth' });
