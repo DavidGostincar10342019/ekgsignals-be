@@ -619,3 +619,28 @@ def detect_r_peaks_advanced(signal_data, fs):
     )
     
     return peaks
+def get_systematic_interpretation(avg_bpm, rhythm_type):
+    """Generiše sistematsku interpretaciju EKG-a"""
+    interpretations = []
+    
+    # Rate analiza
+    if avg_bpm:
+        if avg_bpm < 60:
+            interpretations.append("Bradikardija")
+        elif avg_bpm > 100:
+            interpretations.append("Tahikardija")
+        else:
+            interpretations.append("Normalna frekvencija")
+    
+    # Rhythm analiza
+    if rhythm_type == "irregular":
+        interpretations.append("Atrijska fibrilacija")
+    elif rhythm_type == "regular":
+        interpretations.append("Sinusni ritam")
+    
+    # Kombinacija
+    if not interpretations:
+        return "Potrebna dodatna analiza"
+    
+    return " sa ".join(interpretations)
+

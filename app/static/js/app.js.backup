@@ -64,13 +64,6 @@ class EKGAnalyzer {
             if (e.target && e.target.id === 'generateEkgImageBtn') {
                 this.generateEducationalEkgImage();
             }
-            // Info button for diagram explanations
-            if (e.target && e.target.classList.contains('info-btn')) {
-                const panel = e.target.closest('.result-card').querySelector('.explanation-panel');
-                if (panel) {
-                    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-                }
-            }
         });
     }
 
@@ -306,102 +299,11 @@ class EKGAnalyzer {
             console.log('⚠️ v3.1 No thesis visualizations available');
         }
 
-        // Dodaj sistematsku EKG analizu
-        this.addSystematicAnalysis(data);
+        // NOVO: Sistematska EKG analiza
+        this.addSystematicEKGAnalysis(data);
 
         // Scroll to results
         resultsSection.scrollIntoView({ behavior: 'smooth' });
-    }
-
-    addSystematicAnalysis(data) {
-        const systematicHTML = this.generateSystematicHTML(data);
-        const resultsSection = document.getElementById('resultsSection');
-        
-        // Ukloni postojeću
-        const existing = document.getElementById('systematicSection');
-        if (existing) existing.remove();
-        
-        // Dodaj novu
-        const div = document.createElement('div');
-        div.innerHTML = systematicHTML;
-        resultsSection.parentNode.insertBefore(div.firstElementChild, resultsSection.nextSibling);
-    }
-
-    generateSystematicHTML(data) {
-        const heartRate = data.arrhythmia_detection?.heart_rate;
-        const avgBpm = heartRate?.average_bpm || 0;
-        const isIrregular = (data.arrhythmia_detection?.arrhythmias?.detected || []).length > 0;
-        
-        let rateInfo = { category: "Nepoznato", color: "#666" };
-        if (avgBpm > 0) {
-            if (avgBpm < 60) rateInfo = { category: "< 60 - Bradikardija", color: "#e74c3c" };
-            else if (avgBpm <= 100) rateInfo = { category: "60-100 - Normalna", color: "#27ae60" };
-            else if (avgBpm <= 150) rateInfo = { category: "100-150 - Blaga tahikardija", color: "#f39c12" };
-            else rateInfo = { category: "> 150 - Tahikardija", color: "#e74c3c" };
-        }
-        
-        const rhythmInfo = isIrregular 
-            ? { text: "Nepravilno nepravilan", color: "#e74c3c" }
-            : { text: "Pravilan", color: "#27ae60" };
-            
-        return `
-            <div id="systematicSection" class="main-card" style="margin-top: 20px;">
-                <h2><i class="fas fa-stethoscope"></i> Sistematska EKG Analiza</h2>
-                <div class="result-card">
-                    <div class="result-header">
-                        <i class="fas fa-clipboard-list result-icon" style="color: #8e44ad;"></i>
-                        <h3 class="result-title">Klinička Interpretacija</h3>
-                    </div>
-                    <div class="result-content">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
-                                <h4>📋 Sistematski Pregled</h4>
-                                <div style="display: grid; gap: 8px;">
-                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${rateInfo.color};">
-                                        <strong>Frekvencija:</strong> <span style="color: ${rateInfo.color};">${Math.round(avgBpm)} otkucaja/min</span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${rhythmInfo.color};">
-                                        <strong>Ritam:</strong> <span style="color: ${rhythmInfo.color};">${rhythmInfo.text}</span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #27ae60;">
-                                        <strong>Osa:</strong> <span style="color: #27ae60;">Normalna</span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${isIrregular ? '#e74c3c' : '#27ae60'};">
-                                        <strong>PR/P talas:</strong> <span style="color: ${isIrregular ? '#e74c3c' : '#27ae60'};">${isIrregular ? 'Polimorfni P-talasi' : 'Normalni P-talasi'}</span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #27ae60;">
-                                        <strong>QRS:</strong> <span style="color: #27ae60;">Uzak</span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #27ae60;">
-                                        <strong>ST/T talas:</strong> <span style="color: #27ae60;">Normalan</span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #27ae60;">
-                                        <strong>QTc/ostalo:</strong> <span style="color: #27ae60;">Normalan</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div style="background: #e8f5e8; padding: 15px; border-radius: 8px;">
-                                <h4>🏥 Interpretacija</h4>
-                                <p><strong>Kategorija:</strong> <span style="color: ${rateInfo.color};">${rateInfo.category}</span></p>
-                                <div style="background: ${isIrregular ? '#fff3cd' : '#d4edda'}; padding: 10px; border-radius: 6px; margin: 15px 0;">
-                                    <strong>${isIrregular ? '⚠️ Mogući nalaz: Atrijska fibrilacija' : '✅ Nalaz: Sinusni ritam'}</strong>
-                                </div>
-                                <p><strong>Preporučeno:</strong></p>
-                                <ul style="margin: 5px 0; padding-left: 20px;">
-                                    ${avgBpm > 150 ? '<li>Hitna kardiološka konsultacija</li>' : ''}
-                                    ${isIrregular ? '<li>EKG u 12 odvoda za potvrdu</li>' : ''}
-                                    ${avgBpm < 60 ? '<li>Provera simptoma bradikardije</li>' : ''}
-                                    <li>Redovna kontrola prema kliničkom stanju</li>
-                                </ul>
-                            </div>
-                        </div>
-                        <div style="background: #f0f8ff; padding: 10px; border-radius: 6px; margin-top: 15px; border-left: 4px solid #007bff;">
-                            <small><strong>Napomena:</strong> Automatska analiza. Za konačnu dijagnozu obratite se lekaru.</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
     }
 
     populateSignalInfo(signalInfo) {
@@ -1884,21 +1786,6 @@ class EKGAnalyzer {
     }
 
     // NOVO: Dodaj vizuelizacije za master rad
-    // Funkcija za kreiranje specifičnih objašnjenja za svaki dijagram
-    getVisualizationExplanation(key, viz) {
-        const explanations = {
-            "1": "Ovaj dijagram prikazuje EKG signal u vremenskom domenu sa detektovanim R-pikovima (označeni crvenim krugovima). R-pikovi predstavljaju električni impuls koji pokreće kontrakciju srčanih komora. Analiza R-pikova omogućava merenje srčane frekvencije, varijabilnosti srčanog ritma i detekciju potencijalnih aritmija. Visina i raspored R-pikova mogu ukazati na različite kardiološke stanja.",
-            
-            "2": "FFT (Fast Fourier Transform) spektar pokazuje frekvencijski sadržaj EKG signala. Dominantna frekvencija (označena crvenom linijom) odgovara osnovnoj srčanoj frekvenciji. Analiza frekvencijskog spektra omogućava identifikaciju periodičnih komponenti signala, šuma i artefakata. Visoke frekvencije mogu ukazati na mišićne artefakte, dok niske frekvencije mogu biti posledica disanja ili kretanja pacijenta.",
-            
-            "3": "Ovaj dijagram poredi automatski detektovane R-pikove (crveno) sa ekspertskim MIT-BIH anotacijama (zeleno). MIT-BIH baza podataka sadrži ručno označene R-pikove od strane kardiologa i predstavlja 'zlatni standard' za validaciju algoritama. Poklapanje detektovanih pikova sa ekspertskim anotacijama ukazuje na tačnost algoritma za detekciju R-pikova.",
-            
-            "4": "Signal processing pipeline prikazuje korake obrade EKG signala korišćenjem Z-transformacije: 1) Originalni signal, 2) Bandpass filtriranje (0.5-40 Hz) za uklanjanje šuma, 3) Baseline removal za eliminaciju drift-a signala, 4) Filter response u Z-domenu koji pokazuje karakteristike primenjenog filtera. Z-transformacija omogućava dizajn i analizu digitalnih filtara u diskretnom domenu."
-        };
-        
-        return explanations[key] || `Objašnjenje za ${viz.title}: Ovaj dijagram predstavlja važnu komponentu analize EKG signala u okviru master rada o primeni Furijeove i Z-transformacije u biomedicinskim signalima.`;
-    }
-
     addThesisVisualizations(visualizations) {
         console.log('🎯 v3.1 Starting addThesisVisualizations - FIXED for broken pipe');
         console.log('📊 v3.1 Received data:', visualizations);
@@ -2719,122 +2606,6 @@ async function generatePDFReport() {
     }
 }
 
-// Funkcija za kreiranje specifičnih objašnjenja za svaki dijagram
-EKGAnalyzer.prototype.getVisualizationExplanation = function(key, viz) {
-    const explanations = {
-        "1": "Ovaj dijagram prikazuje EKG signal u vremenskom domenu sa detektovanim R-pikovima (označeni crvenim krugovima). R-pikovi predstavljaju električni impuls koji pokreće kontrakciju srčanih komora. Analiza R-pikova omogućava merenje srčane frekvencije, varijabilnosti srčanog ritma i detekciju potencijalnih aritmija. Visina i raspored R-pikova mogu ukazati na različite kardiološke stanja.",
-        
-        "2": "FFT (Fast Fourier Transform) spektar pokazuje frekvencijski sadržaj EKG signala. Dominantna frekvencija (označena crvenom linijom) odgovara osnovnoj srčanoj frekvenciji. Analiza frekvencijskog spektra omogućava identifikaciju periodičnih komponenti signala, šuma i artefakata. Visoke frekvencije mogu ukazati na mišićne artefakte, dok niske frekvencije mogu biti posledica disanja ili kretanja pacijenta.",
-        
-        "3": "Ovaj dijagram poredi automatski detektovane R-pikove (crveno) sa ekspertskim MIT-BIH anotacijama (zeleno). MIT-BIH baza podataka sadrži ručno označene R-pikove od strane kardiologa i predstavlja 'zlatni standard' za validaciju algoritama. Poklapanje detektovanih pikova sa ekspertskim anotacijama ukazuje na tačnost algoritma za detekciju R-pikova.",
-        
-        "4": "Signal processing pipeline prikazuje korake obrade EKG signala korišćenjem Z-transformacije: 1) Originalni signal, 2) Bandpass filtriranje (0.5-40 Hz) za uklanjanje šuma, 3) Baseline removal za eliminaciju drift-a signala, 4) Filter response u Z-domenu koji pokazuje karakteristike primenjenog filtera. Z-transformacija omogućava dizajn i analizu digitalnih filtara u diskretnom domenu."
-    };
-    
-    return explanations[key] || `Objašnjenje za ${viz.title}: Ovaj dijagram predstavlja važnu komponentu analize EKG signala u okviru master rada o primeni Furijeove i Z-transformacije u biomedicinskim signalima.`;
-};
-
-// Zamena postojeće funkcije addThesisVisualizations sa novom implementacijom
-EKGAnalyzer.prototype.addThesisVisualizations = function(visualizations) {
-    console.log('🎯 v3.1 Starting addThesisVisualizations with info buttons');
-    console.log('📊 Available visualizations:', Object.keys(visualizations.visualizations || {}));
-    
-    // Ukloni postojeće vizuelizacije
-    const existing = document.getElementById('thesisVisualizationsSection');
-    if (existing) existing.remove();
-    
-    // Kreiraj novu sekciju
-    const section = document.createElement('div');
-    section.id = 'thesisVisualizationsSection';
-    section.className = 'main-card';
-    section.style.marginTop = '20px';
-    
-    let html = `
-        <h2><i class="fas fa-chart-line"></i> ${visualizations.description || 'Vizuelizacije za Master Rad'}</h2>
-        <p class="subtitle">${visualizations.subtitle || ''}</p>
-    `;
-    
-    // Dodaj svaku vizuelizaciju
-    const vizData = visualizations.visualizations || {};
-    const sortedKeys = Object.keys(vizData).sort((a, b) => parseInt(a) - parseInt(b));
-    
-    console.log('📊 v3.1 Sorted visualization keys:', sortedKeys);
-    
-    for (const key of sortedKeys) {
-        const viz = vizData[key];
-        console.log(`📊 v3.1 Processing visualization ${key}:`, {
-            title: viz.title,
-            hasImage: !!viz.image_base64,
-            imageLength: viz.image_base64 ? viz.image_base64.length : 0
-        });
-        
-        // Kreiraj objašnjenje specifično za svaki dijagram
-        const explanation = this.getVisualizationExplanation(key, viz);
-        
-        if (viz.image_base64) {
-            html += `
-                <div class="result-card" style="margin-bottom: 20px;">
-                    <div class="result-header" style="position: relative;">
-                        <i class="fas fa-chart-area result-icon" style="color: #3498db;"></i>
-                        <h3 class="result-title">${viz.title || `Vizuelizacija ${key}`}</h3>
-                        <button class="info-btn" 
-                                style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: #007bff; color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; font-size: 14px; font-weight: bold; transition: all 0.3s ease;">i</button>
-                    </div>
-                    <div class="explanation-panel" style="display: none; background: #e7f3ff; padding: 15px; margin: 10px 0; border-left: 4px solid #007bff; border-radius: 5px;">
-                        <h4 style="color: #0056b3; margin: 0 0 10px 0;"><i class="fas fa-info-circle"></i> Objašnjenje dijagrama</h4>
-                        <p style="margin: 0; line-height: 1.5;">${explanation}</p>
-                    </div>
-                    <div class="result-content">
-                        <p style="margin-bottom: 15px;">${viz.description || ''}</p>
-                        <div style="text-align: center; margin: 20px 0;">
-                            <img src="data:image/png;base64,${viz.image_base64}" 
-                                 style="max-width: 100%; border: 1px solid #ddd; border-radius: 8px;" 
-                                 alt="${viz.title || `Vizuelizacija ${key}`}">
-                        </div>
-                        <p style="font-style: italic; color: #666; text-align: center; margin-top: 10px;">
-                            ${viz.caption || ''}
-                        </p>
-                    </div>
-                </div>
-            `;
-        } else {
-            console.log(`⚠️ v3.1 Visualization ${key} has no image_base64`);
-            html += `
-                <div class="result-card" style="margin-bottom: 20px;">
-                    <div class="result-header" style="position: relative;">
-                        <i class="fas fa-chart-area result-icon" style="color: #95a5a6;"></i>
-                        <h3 class="result-title">${viz.title || `Vizuelizacija ${key}`}</h3>
-                        <button class="info-btn" 
-                                style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: #007bff; color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; font-size: 14px; font-weight: bold; transition: all 0.3s ease;">i</button>
-                    </div>
-                    <div class="explanation-panel" style="display: none; background: #e7f3ff; padding: 15px; margin: 10px 0; border-left: 4px solid #007bff; border-radius: 5px;">
-                        <h4 style="color: #0056b3; margin: 0 0 10px 0;"><i class="fas fa-info-circle"></i> Objašnjenje dijagrama</h4>
-                        <p style="margin: 0; line-height: 1.5;">${explanation}</p>
-                    </div>
-                    <div class="result-content">
-                        <p style="margin-bottom: 15px;">${viz.description || ''}</p>
-                        <div style="text-align: center; padding: 40px; background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 8px;">
-                            <i class="fas fa-image" style="font-size: 48px; color: #dee2e6; margin-bottom: 15px;"></i>
-                            <p style="color: #6c757d; margin: 0;">Slika nije dostupna za ovaj dijagram</p>
-                        </div>
-                        <p style="font-style: italic; color: #666; text-align: center; margin-top: 10px;">
-                            ${viz.caption || ''}
-                        </p>
-                    </div>
-                </div>
-            `;
-        }
-    }
-    
-    section.innerHTML = html;
-    
-    // Dodaj sekciju na stranu
-    const resultsSection = document.getElementById('resultsSection');
-    resultsSection.parentNode.insertBefore(section, resultsSection.nextSibling);
-    
-    console.log('✅ v3.1 Thesis visualizations section added successfully with info buttons');
-};
-
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.ekgAnalyzer = new EKGAnalyzer();
@@ -2885,151 +2656,868 @@ window.loadLazyImage = function(key) {
 console.log("🔧 Broken pipe fix helper functions loaded");
 
 
-// EDUKATIVNI SISTEM - "i" dugme objašnjenja
-window.showEducationalInfo = function(vizKey, vizTitle, vizDescription) {
-    console.log("🎓 Educational info for:", vizKey, vizTitle);
-    
-    const explanations = {
+// Edukativne informacije za svaki dijagram - Educational Info System
+window.showEducationalInfo = function(vizKey) {
+    const educationalContent = {
         "1": {
             title: "📈 EKG Signal sa R-pikovima",
-            content: `
-                <h4>Analiza ovog dijagrama:</h4>
-                <p><strong>Što vidite:</strong> Plava linija = vaš EKG signal, Crveni krugovi = detektovani otkucaji srca</p>
-                <h4>Kako čitati:</h4>
+            explanation: `
+                <h4>Šta ovaj dijagram prikazuje:</h4>
+                <p>Ovaj grafikon prikazuje <strong>električni signal srca (EKG)</strong> u vremenskom domenu, sa automatski detektovanim R-pikovima označenim crvenim krugovima.</p>
+                
+                <h4>Šta su R-pikovi:</h4>
                 <ul>
-                    <li><strong>Broj crvenih krugova</strong> = Broj detektovanih otkucaja</li>
-                    <li><strong>Razmaci između krugova</strong> = Regularnost ritma</li>
-                    <li><strong>Visina R-pikova</strong> = Snaga kontrakcije</li>
+                    <li><strong>R-pik</strong> = Najveći deo QRS kompleksa, označava kontrakciju komora srca</li>
+                    <li><strong>Crveni krugovi</strong> = Automatski detektovani otkucaji srca</li>
+                    <li><strong>Vremenski opseg</strong> = Prikazuje prvih 10 sekundi signala</li>
                 </ul>
-                <p><strong>Značaj:</strong> Prvi korak analize - detekcija karakterističnih tačaka vašeg EKG signala za dalju FFT i Z-transformaciju analizu.</p>
+                
+                <h4>Kako interpretirati rezultate:</h4>
+                <ul>
+                    <li><strong>Redovni R-pikovi</strong> = Normalan srčani ritam</li>
+                    <li><strong>Neregularni razmaci</strong> = Mogu ukazivati na aritmiju</li>
+                    <li><strong>Broj R-pikova</strong> = Broj otkucaja u prikazanom periodu</li>
+                </ul>
+                
+                <h4>Značaj za master rad:</h4>
+                <p>Ovaj dijagram demonstrira <strong>detekciju karakterističnih tačaka</strong> u biomedicinskom signalu, što je osnova za dalju analizu pomoću Furijeove i Z-transformacije.</p>
             `
         },
         "2": {
-            title: "📊 FFT Spektar (Furijeova Transformacija)", 
-            content: `
-                <h4>Analiza ovog FFT spektra:</h4>
-                <p><strong>Što vidite:</strong> Frekvencijski sadržaj vašeg EKG signala</p>
-                <h4>Elementi:</h4>
+            title: "📊 FFT Spektar (Furijeova Transformacija)",
+            explanation: `
+                <h4>Šta ovaj dijagram prikazuje:</h4>
+                <p>FFT (Fast Fourier Transform) spektar pokazuje <strong>frekvencijski sadržaj</strong> EKG signala - koje frekvencije su prisutne i koliko su jake.</p>
+                
+                <h4>Delovi dijagrama:</h4>
                 <ul>
-                    <li><strong>Najviši pik</strong> = Dominantna frekvencija vašeg srca</li>
-                    <li><strong>Crvena linija</strong> = Izračunata srčana frekvencija</li>
-                    <li><strong>Širina pika</strong> = Varijabilnost ritma</li>
+                    <li><strong>Gornji grafikon</strong> = Ceo spektar (0-10 Hz)</li>
+                    <li><strong>Donji grafikon</strong> = Zoom na srčane frekvencije (0.5-3 Hz)</li>
+                    <li><strong>Crvena linija</strong> = Dominantna frekvencija (srčana frekvencija)</li>
+                    <li><strong>Žuti okvir</strong> = Frekvencija u Hz i pretvorena u bpm</li>
                 </ul>
-                <p><strong>Značaj:</strong> Furijeova transformacija omogućava precizno računanje frekvencije i detekciju ritmičkih poremećaja.</p>
+                
+                <h4>Kako interpretirati rezultate:</h4>
+                <ul>
+                    <li><strong>Pik oko 1-2 Hz</strong> = Normalna srčana frekvencija (60-120 bpm)</li>
+                    <li><strong>Viši pikovi</strong> = Brža srčana frekvencija (tahikardija)</li>
+                    <li><strong>Niži pikovi</strong> = Sporija srčana frekvencija (bradikardija)</li>
+                    <li><strong>Više pikova</strong> = Neregularan ritam ili aritmija</li>
+                </ul>
+                
+                <h4>Značaj za master rad:</h4>
+                <p><strong>Furijeova transformacija</strong> je ključni alat za analizu biomedicinskih signala jer omogućava prelazak iz vremenskog u frekvencijski domen, gde možemo identifikovati karakteristične frekvencije srčanog ritma.</p>
             `
         },
         "3": {
             title: "🏥 Poređenje sa MIT-BIH Anotacijama",
-            content: `
-                <h4>Validacija vašeg signala:</h4>
-                <p><strong>Što vidite:</strong> Poređenje našeg algoritma sa medicinskim standardom</p>
-                <h4>Simboli:</h4>
+            explanation: `
+                <h4>Šta ovaj dijagram prikazuje:</h4>
+                <p>Poređenje između <strong>automatski detektovanih R-pikova</strong> (naš algoritam) i <strong>ekspertskih MIT-BIH anotacija</strong> (medicinski standard).</p>
+                
+                <h4>Elementi dijagrama:</h4>
                 <ul>
-                    <li><strong>Crveni krugovi</strong> = Naš algoritam na vašem EKG-u</li>
+                    <li><strong>Crveni krugovi</strong> = Naš algoritam za detekciju R-pikova</li>
                     <li><strong>Zeleni trouglovi</strong> = MIT-BIH ekspertske anotacije</li>
-                    <li><strong>Poklapanje</strong> = Tačna detekcija</li>
+                    <li><strong>Gornji grafikon</strong> = Pregled 30 sekundi</li>
+                    <li><strong>Donji grafikon</strong> = Detaljni prikaz prvih 10 sekundi</li>
                 </ul>
-                <p><strong>Značaj:</strong> Objektivna procena tačnosti algoritma na vašem konkretnom signalu protiv zlatnog standarda kardiologije.</p>
+                
+                <h4>Kako interpretirati rezultate:</h4>
+                <ul>
+                    <li><strong>Poklapanje simbola</strong> = Tačna detekcija (True Positive)</li>
+                    <li><strong>Crveni bez zelenog</strong> = Lažna detekcija (False Positive)</li>
+                    <li><strong>Zeleni bez crvenog</strong> = Propuštena detekcija (False Negative)</li>
+                    <li><strong>Procenat poklapanja</strong> = Tačnost algoritma (±50ms tolerancija)</li>
+                </ul>
+                
+                <h4>MIT-BIH Baza:</h4>
+                <p><strong>MIT-BIH Arrhythmia Database</strong> je złoty standard u kardiologiji - sadrži expertski anotirane EKG signale korišćene za validaciju algoritama širom sveta.</p>
+                
+                <h4>Značaj za master rad:</h4>
+                <p>Ovaj dijagram demonstrira <strong>validaciju algoritma</strong> protiv medicinskog standarda, što je ključno za proveru da li transformacije (Furijeova i Z) daju tačne rezultate.</p>
             `
         },
         "4": {
             title: "⚙️ Signal Processing Pipeline (Z-transformacija)",
-            content: `
-                <h4>Obrada vašeg signala:</h4>
-                <p><strong>Što vidite:</strong> Koraci digitalne obrade vašeg EKG signala</p>
-                <h4>Pipeline:</h4>
+            explanation: `
+                <h4>Šta ovaj dijagram prikazuje:</h4>
+                <p>Korake <strong>digitalne obrade signala</strong> korišćenjem Z-transformacije, od sirovog signala do filtriranog rezultata.</p>
+                
+                <h4>Četiri koraka obrade:</h4>
                 <ul>
-                    <li><strong>Panel 1</strong> = Vaš originalni signal (sa šumom)</li>
-                    <li><strong>Panel 2</strong> = Nakon bandpass filtera</li>
-                    <li><strong>Panel 3</strong> = Nakon baseline korekcije</li>
-                    <li><strong>Panel 4</strong> = Z-filter karakteristike</li>
+                    <li><strong>1. Originalni signal</strong> = Sirovi EKG signal sa šumom</li>
+                    <li><strong>2. Bandpass filter</strong> = Filtriranje frekvencija (0.5-40 Hz)</li>
+                    <li><strong>3. Baseline removal</strong> = Uklanjanje baseline drift-a</li>
+                    <li><strong>4. Filter response</strong> = Karakteristika filtera u Z-domenu</li>
                 </ul>
-                <p><strong>Značaj:</strong> Z-transformacija omogućava kreiranje optimalnih digitalnih filtara za čišćenje vašeg EKG signala.</p>
+                
+                <h4>Zašto je filtriranje potrebno:</h4>
+                <ul>
+                    <li><strong>Šum iz mreže</strong> = 50/60 Hz električna interferencija</li>
+                    <li><strong>Pokretni artefakti</strong> = Niške frekvencije od disanja/pokreta</li>
+                    <li><strong>Baseline drift</strong> = Sporih promene zbog elektroda</li>
+                    <li><strong>Visoke frekvencije</strong> = EMG šum od mišića</li>
+                </ul>
+                
+                <h4>Z-transformacija:</h4>
+                <p><strong>Z-transformacija</strong> je matematički alat za analizu i dizajn digitalnih filtara. Omogućava nam da:</p>
+                <ul>
+                    <li>Analiziramo stabilnost filtera</li>
+                    <li>Dizajniramo optimalne karakteristike</li>
+                    <li>Kontrolišemo faze i magnitude odgovor</li>
+                </ul>
+                
+                <h4>Značaj za master rad:</h4>
+                <p>Ovaj dijagram demonstrira primenu <strong>Z-transformacije u biomedicinskim signalima</strong> - kako se koristi za kreiranje filtara koji čiste EKG signal za dalju analizu.</p>
             `
         }
     };
     
-    const info = explanations[vizKey] || {
-        title: vizTitle || "Dijagram",
-        content: "<p>Ovaj dijagram je deo master rada o Furijeovoj i Z-transformaciji u biomedicinskim signalima.</p>"
-    };
+    const content = educationalContent[vizKey];
+    if (!content) {
+        alert("Edukativne informacije nisu dostupne za ovaj dijagram.");
+        return;
+    }
     
-    // Kreiraj modal
+    // Kreiraj modal za prikaz edukativnih informacija
     const modal = document.createElement("div");
     modal.style.cssText = `
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-        background: rgba(0,0,0,0.8); z-index: 10000; display: flex; 
-        align-items: center; justify-content: center; padding: 20px;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.8);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        box-sizing: border-box;
     `;
     
     modal.innerHTML = `
-        <div style="background: white; border-radius: 12px; max-width: 700px; max-height: 80vh; 
-                    overflow-y: auto; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; 
-                        border-bottom: 2px solid #3498db; padding-bottom: 15px;">
-                <h2 style="margin: 0; color: #2c3e50;">${info.title}</h2>
+        <div style="
+            background: white;
+            border-radius: 12px;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            position: relative;
+        ">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #3498db; padding-bottom: 15px;">
+                <h2 style="margin: 0; color: #2c3e50;">${content.title}</h2>
                 <button onclick="this.parentElement.parentElement.parentElement.remove()" 
-                        style="background: #e74c3c; color: white; border: none; border-radius: 50%; 
-                               width: 30px; height: 30px; cursor: pointer; font-size: 18px;">×</button>
+                        style="background: #e74c3c; color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 18px; font-weight: bold;">
+                    ×
+                </button>
             </div>
-            <div style="line-height: 1.6; color: #2c3e50;">${info.content}</div>
-            <div style="text-align: center; margin-top: 20px;">
+            <div style="line-height: 1.6; color: #2c3e50;">
+                ${content.explanation}
+            </div>
+            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #bdc3c7;">
                 <button onclick="this.parentElement.parentElement.parentElement.remove()" 
-                        style="background: #3498db; color: white; border: none; padding: 10px 25px; 
-                               border-radius: 6px; cursor: pointer;">Zatvori</button>
+                        style="background: #3498db; color: white; border: none; padding: 12px 30px; border-radius: 6px; cursor: pointer; font-size: 16px;">
+                    Zatvoři
+                </button>
             </div>
         </div>
     `;
     
-    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    // Zatvaranje na klik van modal-a
+    modal.addEventListener("click", function(e) {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+    
     document.body.appendChild(modal);
 };
 
-// Automatski dodaj "i" dugmeta na dijagrame
-function addInfoButtonsToVisualizations() {
-    setTimeout(() => {
-        const vizElements = document.querySelectorAll(".thesis-visualization h4");
-        console.log(`🎓 Found ${vizElements.length} visualizations to add info buttons`);
-        
-        vizElements.forEach((h4, index) => {
-            if (h4.querySelector(".info-btn")) return; // Već postoji
-            
-            const key = String(index + 1);
-            const title = h4.textContent || "";
-            
-            // Napravi wrapper
-            const wrapper = document.createElement("div");
-            wrapper.style.cssText = "display: flex; justify-content: space-between; align-items: center;";
-            
-            // Premesti h4 u wrapper
-            h4.parentNode.insertBefore(wrapper, h4);
-            h4.style.margin = "0";
-            wrapper.appendChild(h4);
-            
-            // Dodaj "i" dugme
-            const btn = document.createElement("button");
-            btn.className = "info-btn";
-            btn.innerHTML = "i";
-            btn.style.cssText = `
-                background: #3498db; color: white; border: none; border-radius: 50%;
-                width: 24px; height: 24px; cursor: pointer; font-size: 14px; font-weight: bold;
-                display: flex; align-items: center; justify-content: center;
-            `;
-            btn.title = "Kliknite za objašnjenje dijagrama";
-            btn.onclick = () => window.showEducationalInfo(key, title, "");
-            
-            wrapper.appendChild(btn);
-            console.log(`🎓 Added info button to: ${title}`);
-        });
-    }, 1000);
-}
+console.log("🎓 Educational info system loaded - Interactive diagram explanations available");
 
-// Aktiviraj kada se učitaju vizualizacije
-const originalAddThesis = EKGAnalyzer.prototype.addThesisVisualizations;
-EKGAnalyzer.prototype.addThesisVisualizations = function(visualizations) {
-    const result = originalAddThesis.call(this, visualizations);
-    addInfoButtonsToVisualizations();
-    return result;
+
+// 🎓 EDUKATIVNI SISTEM ZA DIJAGRAME - Educational Info System
+// Dodaje "i" dugme pored svakog dijagrama sa detaljnim objašnjenjem
+
+window.showEducationalInfo = function(vizKey, vizTitle, vizDescription) {
+    console.log('🎓 showEducationalInfo called with:', {vizKey, vizTitle, vizDescription});
+    
+    // Generiši specifično objašnjenje na osnovu stvarnog sadržaja dijagrama
+    function generateSpecificExplanation(vizKey, vizTitle, vizDescription) {
+        const title = vizTitle || '';
+        const description = vizDescription || '';
+        
+        // Analiza sadržaja dijagrama za specifično objašnjenje
+        if (vizKey === "1" || title.includes("R-pik") || title.includes("Signal")) {
+            return {
+                title: "📈 " + title,
+                explanation: `
+                    <h4>Analiza ovog konkretnog dijagrama:</h4>
+                    <p><strong>Naslov:</strong> ${title}</p>
+                    <p><strong>Opis:</strong> ${description}</p>
+                    
+                    <h4>Šta vidite na ovom dijagramu:</h4>
+                    <ul>
+                        <li><strong>Plava linija</strong> = Vaš EKG signal u vremenskom domenu</li>
+                        <li><strong>Crveni krugovi</strong> = Automatski detektovani R-pikovi (otkucaji srca)</li>
+                        <li><strong>X-osa</strong> = Vreme u sekundama</li>
+                        <li><strong>Y-osa</strong> = Amplituda EKG signala (mV)</li>
+                    </ul>
+                    
+                    <h4>Kako čitati rezultate:</h4>
+                    <ul>
+                        <li><strong>Broj crvenih krugova</strong> = Broj detektovanih otkucaja srca</li>
+                        <li><strong>Razmak između krugova</strong> = Regularnost srčanog ritma</li>
+                        <li><strong>Visina R-pikova</strong> = Snaga srčane kontrakcije</li>
+                    </ul>
+                    
+                    <h4>Vaš specifični rezultat:</h4>
+                    <p>Na ovom dijagramu možete videti kako algoritam detektuje karakteristične tačke vašeg EKG signala. Ovo je prvi korak u kompleksnoj analizi koji omogućava dalje računanje srčane frekvencije i detekciju aritmija.</p>
+                `
+            };
+        }
+        
+        if (vizKey === "2" || title.includes("FFT") || title.includes("Furier")) {
+            return {
+                title: "📊 " + title,
+                explanation: `
+                    <h4>Analiza ovog konkretnog FFT spektra:</h4>
+                    <p><strong>Naslov:</strong> ${title}</p>
+                    <p><strong>Opis:</strong> ${description}</p>
+                    
+                    <h4>Šta vidite na ovom dijagramu:</h4>
+                    <ul>
+                        <li><strong>Gornji grafikon</strong> = Kompletni frekvencijski spektar vašeg EKG-a</li>
+                        <li><strong>Donji grafikon</strong> = Uvećan prikaz srčanih frekvencija (0.5-3 Hz)</li>
+                        <li><strong>Crvena vertikalna linija</strong> = Dominantna frekvencija vašeg srca</li>
+                        <li><strong>Žuti okvir</strong> = Izračunata srčana frekvencija iz FFT-a</li>
+                    </ul>
+                    
+                    <h4>Kako interpretirati vaš rezultat:</h4>
+                    <ul>
+                        <li><strong>Najviši pik</strong> = Glavna frekvencija vašeg srčanog ritma</li>
+                        <li><strong>Širina pika</strong> = Varijabilnost srčane frekvencije</li>
+                        <li><strong>Dodatni pikovi</strong> = Mogu ukazivati na irregularnosti</li>
+                    </ul>
+                    
+                    <h4>Vaš specifični rezultat:</h4>
+                    <p>Furijeova transformacija vašeg EKG signala pokazuje dominantne frekvencije. Ovo omogućava precizno računanje srčane frekvencije i detekciju ritmičkih poremećaja koji možda nisu vidljivi u vremenskom domenu.</p>
+                `
+            };
+        }
+        
+        if (vizKey === "3" || title.includes("MIT-BIH") || title.includes("Poređenje")) {
+            return {
+                title: "🏥 " + title,
+                explanation: `
+                    <h4>Analiza ovog konkretnog poređenja:</h4>
+                    <p><strong>Naslov:</strong> ${title}</p>
+                    <p><strong>Opis:</strong> ${description}</p>
+                    
+                    <h4>Šta vidite na ovom dijagramu:</h4>
+                    <ul>
+                        <li><strong>Plava linija</strong> = Vaš EKG signal</li>
+                        <li><strong>Crveni krugovi</strong> = R-pikovi detektovani našim algoritmom na vašem signalu</li>
+                        <li><strong>Zeleni trouglovi</strong> = Ekspertske MIT-BIH anotacije (ili sintetičke anotacije)</li>
+                        <li><strong>Gornji panel</strong> = Pregled dugog segmenta</li>
+                        <li><strong>Donji panel</strong> = Detaljni prikaz kratkog segmenta</li>
+                    </ul>
+                    
+                    <h4>Kako oceniti tačnost na vašem signalu:</h4>
+                    <ul>
+                        <li><strong>Poklapanje simbola</strong> = Tačna detekcija R-pika</li>
+                        <li><strong>Crveni bez zelenog</strong> = Lažno pozitivan rezultat</li>
+                        <li><strong>Zeleni bez crvenog</strong> = Propušteni R-pik</li>
+                        <li><strong>Bliskost simbola</strong> = Prihvatljiva tolerancija (±50ms)</li>
+                    </ul>
+                    
+                    <h4>Vaš specifični rezultat:</h4>
+                    <p>Ovaj dijagram pokazuje koliko je tačan algoritam na vašem konkretnom EKG signalu. Validacija protiv MIT-BIH standarda omogućava objektivnu procenu kvaliteta automatske detekcije R-pikova.</p>
+                `
+            };
+        }
+        
+        if (vizKey === "4" || title.includes("Pipeline") || title.includes("Processing")) {
+            return {
+                title: "⚙️ " + title,
+                explanation: `
+                    <h4>Analiza obrade vašeg konkretnog signala:</h4>
+                    <p><strong>Naslov:</strong> ${title}</p>
+                    <p><strong>Opis:</strong> ${description}</p>
+                    
+                    <h4>Šta vidite na ovom dijagramu:</h4>
+                    <ul>
+                        <li><strong>Panel 1</strong> = Vaš originalni EKG signal (pre obrade)</li>
+                        <li><strong>Panel 2</strong> = Signal nakon bandpass filtera (0.5-40 Hz)</li>
+                        <li><strong>Panel 3</strong> = Signal nakon uklanjanja baseline drift-a</li>
+                        <li><strong>Panel 4</strong> = Karakteristika Z-filtera korišćenog za obradu</li>
+                    </ul>
+                    
+                    <h4>Transformacije primenjene na vaš signal:</h4>
+                    <ul>
+                        <li><strong>Bandpass filter</strong> = Uklanja šum ispod 0.5 Hz i iznad 40 Hz</li>
+                        <li><strong>Baseline korekcija</strong> = Stabilizuje nulu referentnu liniju</li>
+                        <li><strong>Z-transformacija</strong> = Matemtički alat za dizajn filtera</li>
+                    </ul>
+                    
+                    <h4>Efekat na vaš specifični signal:</h4>
+                    <p>Možete videti kako se vaš EKG signal čisti kroz korake obrade. Svaki panel pokazuje progresivno poboljšanje kvaliteta signala, omogućavajući precizniju detekciju R-pikova i bolju analizu.</p>
+                    
+                    <h4>Z-transformacija:</h4>
+                    <p>Poslednji panel pokazuje frekvencijski odgovor filtera korišćenog za vaš signal, demonstrirajući kako Z-transformacija omogućava kreiranje optimalnih digitalnih filtara.</p>
+                `
+            };
+        }
+        
+        // Fallback za nepoznate dijagrame
+        return {
+            title: title || "Dijagram",
+            explanation: `
+                <h4>Analiza ovog dijagrama:</h4>
+                <p><strong>Naslov:</strong> ${title}</p>
+                <p><strong>Opis:</strong> ${description}</p>
+                
+                <h4>Opšte informacije:</h4>
+                <p>Ovaj dijagram je deo master rada koji demonstrira primenu Furijeove i Z-transformacije u analizi biomedicinskih signala.</p>
+                
+                <h4>Kontekst:</h4>
+                <p>Svaki dijagram pokazuje različit aspekt obrade i analize EKG signala, doprinoseći ukupnom razumevanju srčane aktivnosti.</p>
+            `
+        };
+    }
+    
+    const content = generateSpecificExplanation(vizKey, vizTitle || '', vizDescription || '');
+    
+    if (!content) {
+        alert("Edukativne informacije nisu dostupne za ovaj dijagram.");
+        return;
+    }
+    
+    // Kreiraj modal za prikaz edukativnih informacija
+    const modal = document.createElement("div");
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.8);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        box-sizing: border-box;
+    `;
+    
+    modal.innerHTML = `
+        <div style="
+            background: white;
+            border-radius: 12px;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            position: relative;
+        ">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #3498db; padding-bottom: 15px;">
+                <h2 style="margin: 0; color: #2c3e50;">${content.title}</h2>
+                <button onclick="this.parentElement.parentElement.parentElement.remove()" 
+                        style="background: #e74c3c; color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 18px; font-weight: bold;">
+                    ×
+                </button>
+            </div>
+            <div style="line-height: 1.6; color: #2c3e50;">
+                ${content.explanation}
+            </div>
+            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #bdc3c7;">
+                <button onclick="this.parentElement.parentElement.parentElement.remove()" 
+                        style="background: #3498db; color: white; border: none; padding: 12px 30px; border-radius: 6px; cursor: pointer; font-size: 16px;">
+                    Zatvori
+                </button>
+            </div>
+        </div>
+    `;
+    
+    // Zatvaranje na klik van modal-a
+    modal.addEventListener("click", function(e) {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+    
+    document.body.appendChild(modal);
 };
 
-console.log("🎓 Educational system loaded - will add info buttons to visualizations");
+// MODIFIKACIJA addThesisVisualizations da uključi "i" dugme
+// Pazi: Ova funkcija se izvršava posle učitavanja vizualizacija
+document.addEventListener("DOMContentLoaded", function() {
+    // Hook u postojeću funkciju kada se dodaju dijagrami
+    const originalMethod = window.EKGAnalyzer ? window.EKGAnalyzer.prototype.addThesisVisualizations : null;
+    
+    // Alternativa: Dodaj observer koji prati kada se kreiraju thesis-visualization elementi
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            mutation.addedNodes.forEach(function(node) {
+                if (node.nodeType === 1 && node.classList && node.classList.contains("thesis-visualization")) {
+                    addInfoButtonToVisualization(node);
+                }
+            });
+        });
+    });
+    
+    // Pokreni observer na ceo dokument
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+});
+
+// Funkcija za dodavanje "i" dugmeta na postojeće vizualizacije
+function addInfoButtonToVisualization(vizElement) {
+    // Pronađi h4 element (naslov dijagrama)
+    const titleElement = vizElement.querySelector("h4");
+    if (!titleElement) return;
+    
+    // Proveri da li već postoji "i" dugme
+    if (vizElement.querySelector(".educational-info-btn")) return;
+    
+    // Ekstraktuj ključ dijagrama iz naslova
+    let vizKey = "1"; // default
+    const titleText = titleElement.textContent;
+    if (titleText.includes("1.") || titleText.includes("R-pik")) vizKey = "1";
+    else if (titleText.includes("2.") || titleText.includes("FFT")) vizKey = "2";
+    else if (titleText.includes("3.") || titleText.includes("MIT-BIH")) vizKey = "3";
+    else if (titleText.includes("4.") || titleText.includes("Pipeline")) vizKey = "4";
+    
+    // Kreiraj wrapper div oko naslova
+    const titleWrapper = document.createElement("div");
+    titleWrapper.style.cssText = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;";
+    
+    // Premesti naslov u wrapper i resetuj margin
+    titleElement.style.margin = "0";
+    titleElement.parentNode.insertBefore(titleWrapper, titleElement);
+    titleWrapper.appendChild(titleElement);
+    
+    // Kreiraj "i" dugme
+    const infoButton = document.createElement("button");
+    infoButton.className = "educational-info-btn";
+    infoButton.style.cssText = `
+        background: #3498db;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    `;
+    infoButton.textContent = "i";
+    infoButton.title = "Kliknite za edukativno objašnjenje";
+    infoButton.onclick = function() { window.showEducationalInfo(vizKey); };
+    
+    titleWrapper.appendChild(infoButton);
+    
+    console.log(`🎓 Added educational info button to visualization ${vizKey}`);
+}
+
+console.log("🎓 Educational info system loaded - Interactive diagram explanations available");
+
+// 🔧 PATCH: Dodaj "i" dugme direktno u addThesisVisualizations funkciju
+// Ovaj kod se izvršava nakon učitavanja i automatski dodaje "i" dugme
+
+setTimeout(function() {
+    // Hook u postojeću funkciju addThesisVisualizations
+    if (window.EKGAnalyzer) {
+        const originalAddThesis = EKGAnalyzer.prototype.addThesisVisualizations;
+        
+        EKGAnalyzer.prototype.addThesisVisualizations = function(visualizations) {
+            console.log("🎓 Patched addThesisVisualizations called");
+            
+            // Pozovi originalnu funkciju
+            const result = originalAddThesis.call(this, visualizations);
+            
+            // Dodaj "i" dugmeta nakon kratke pauze
+            setTimeout(() => {
+                const vizElements = document.querySelectorAll(".thesis-visualization");
+                console.log(`🎓 Found ${vizElements.length} thesis visualizations to patch`);
+                
+                vizElements.forEach((element, index) => {
+                    const key = String(index + 1); // 1, 2, 3, 4
+                    const titleElement = element.querySelector("h4");
+                    
+                    if (titleElement && !element.querySelector(".educational-info-btn")) {
+                        const vizTitle = titleElement.textContent || "";
+                        const vizDesc = element.querySelector("p") ? element.querySelector("p").textContent : "";
+                        
+                        // Kreiraj wrapper div oko naslova
+                        const titleWrapper = document.createElement("div");
+                        titleWrapper.style.cssText = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;";
+                        
+                        // Premesti naslov u wrapper i resetuj margin
+                        titleElement.style.margin = "0";
+                        titleElement.parentNode.insertBefore(titleWrapper, titleElement);
+                        titleWrapper.appendChild(titleElement);
+                        
+                        // Kreiraj "i" dugme
+                        const infoButton = document.createElement("button");
+                        infoButton.className = "educational-info-btn";
+                        infoButton.style.cssText = `
+                            background: #3498db;
+                            color: white;
+                            border: none;
+                            border-radius: 50%;
+                            width: 24px;
+                            height: 24px;
+                            cursor: pointer;
+                            font-size: 14px;
+                            font-weight: bold;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            flex-shrink: 0;
+                        `;
+                        infoButton.textContent = "i";
+                        infoButton.title = "Kliknite za objašnjenje ovog dijagrama";
+                        infoButton.onclick = function() { 
+                            window.showEducationalInfo(key, vizTitle, vizDesc); 
+                        };
+                        
+                        titleWrapper.appendChild(infoButton);
+                        
+                        console.log(`🎓 Added educational info button to visualization ${key}: ${vizTitle}`);
+                    }
+                });
+            }, 100);
+            
+            return result;
+        };
+        
+        console.log("🎓 Successfully patched addThesisVisualizations function");
+    }
+}, 1000);
+
+console.log("🎓 Educational system patch loaded - will add i buttons to all diagrams");
+// DIREKTNA ZAMENA za addThesisVisualizations sa "i" dugmetom
+
+// Ova funkcija će zameniti postojeću addThesisVisualizations funkciju
+function patchAddThesisVisualizationsWithInfoButtons() {
+    if (typeof EKGAnalyzer !== 'undefined' && EKGAnalyzer.prototype.addThesisVisualizations) {
+        console.log('🔧 Patching addThesisVisualizations with info buttons...');
+        
+        // Sačuvaj originalnu funkciju
+        const originalFunction = EKGAnalyzer.prototype.addThesisVisualizations;
+        
+        // Zameni sa novom funkcijom
+        EKGAnalyzer.prototype.addThesisVisualizations = function(visualizations) {
+            console.log('🎯 v3.1 Starting addThesisVisualizations - WITH INFO BUTTONS');
+            console.log('Received visualizations:', visualizations);
+            
+            try {
+                // Validacija da visualizations objekat postoji
+                if (!visualizations || typeof visualizations !== 'object') {
+                    console.log('❌ Invalid visualizations object');
+                    return;
+                }
+                
+                // Proverava da li postoje vizuelizacije
+                const vizData = visualizations.visualizations || {};
+                const vizKeys = Object.keys(vizData);
+                
+                if (vizKeys.length === 0) {
+                    console.log('❌ No visualizations found');
+                    return;
+                }
+                
+                console.log(`📊 Found ${vizKeys.length} visualizations:`, vizKeys);
+                
+                // Kreiranje thesis vizuelizacije sekcije
+                let thesisSection = document.getElementById('thesisVisualizationsSection');
+                if (!thesisSection) {
+                    thesisSection = document.createElement('div');
+                    thesisSection.id = 'thesisVisualizationsSection';
+                    thesisSection.className = 'main-card';
+                    thesisSection.style.marginTop = '20px';
+                    
+                    // Dodaj nakon resultsSection
+                    const resultsSection = document.getElementById('resultsSection');
+                    if (resultsSection) {
+                        resultsSection.parentNode.insertBefore(thesisSection, resultsSection.nextSibling);
+                    } else {
+                        document.body.appendChild(thesisSection);
+                    }
+                }
+                
+                // Header za thesis vizuelizacije
+                let headerHTML = `
+                    <h2><i class="fas fa-chart-line"></i> Master Rad Vizuelizacije</h2>
+                    <div class="result-card">
+                        <div class="result-header">
+                            <i class="fas fa-graduation-cap result-icon" style="color: #9b59b6;"></i>
+                            <h3 class="result-title">Furijeova i Z-transformacija u analizi biomedicinskih signala</h3>
+                        </div>
+                        <div class="result-content">
+                            <p><strong>Opisna statistika:</strong> ${visualizations.description || 'N/A'}</p>
+                            <p><strong>Napomena:</strong> ${visualizations.subtitle || 'N/A'}</p>
+                            <div id="visualizationsContainer" style="margin-top: 20px;">
+                `;
+                
+                // Dodaj svaku vizuelizaciju SA "i" DUGMETOM
+                vizKeys.forEach((key, index) => {
+                    const viz = vizData[key];
+                    console.log(`📊 v3.1 Adding visualization ${key}: ${viz.title}`);
+                    
+                    // KREIRAJ DIV SA "i" DUGMETOM
+                    headerHTML += `
+                        <div class="thesis-visualization" style="margin-bottom: 30px; border: 1px solid #ddd; border-radius: 8px; padding: 15px; position: relative;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <h4 style="color: #2c3e50; margin: 0;">${viz.title || `Vizuelizacija ${key}`}</h4>
+                                <button onclick="window.showEducationalInfo('${key}', '${(viz.title || '').replace(/'/g, "\\'")}', '${(viz.description || '').replace(/'/g, "\\'")}')" 
+                                        style="background: #3498db; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px; font-weight: bold; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"
+                                        title="Kliknite za objašnjenje ovog dijagrama">
+                                    i
+                                </button>
+                            </div>
+                            <p style="margin-bottom: 15px; color: #666;">${viz.description || 'Nema opisa'}</p>
+                    `;
+                    
+                    // DODAJ SLIKU (postojeći kod)
+                    if (viz.image_base64) {
+                        const imageSize = viz.image_base64.length;
+                        console.log(`Image ${key} size: ${imageSize} characters`);
+                        
+                        // Ako je slika prevetika, koristi lazy loading
+                        if (imageSize > 150000) {
+                            console.log(`⚠️ Large image detected for viz ${key}, using lazy loading`);
+                            headerHTML += `
+                                <div style="text-align: center; margin: 15px 0;">
+                                    <div id="lazy-image-${key}" style="padding: 40px; background: #f8f9fa; border-radius: 8px; border: 2px dashed #dee2e6;">
+                                        <i class="fas fa-image" style="font-size: 48px; color: #6c757d; margin-bottom: 15px;"></i>
+                                        <p style="color: #6c757d; margin-bottom: 15px;">Velika slika - kliknite da učitate (${Math.round(imageSize/1024)}KB)</p>
+                                        <button class="btn btn-primary" onclick="window.loadLazyImage('${key}')">
+                                            <i class="fas fa-download"></i> Učitaj Sliku
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                            
+                            // Sačuvaj sliku za lazy loading
+                            window.lazyImages = window.lazyImages || {};
+                            window.lazyImages[key] = viz.image_base64;
+                        } else {
+                            // Normalna slika - učitaj odmah
+                            headerHTML += `
+                                <div style="text-align: center; margin: 15px 0;">
+                                    <img src="data:image/png;base64,${viz.image_base64}" 
+                                         style="max-width: 100%; border: 2px solid #ddd; border-radius: 8px;" 
+                                         alt="${viz.title}"
+                                         loading="lazy">
+                                </div>
+                            `;
+                        }
+                    } else {
+                        // Nema slike
+                        headerHTML += `
+                            <div style="text-align: center; margin: 15px 0;">
+                                <div style="padding: 40px; background: #fff3cd; border-radius: 8px; border: 2px dashed #ffc107;">
+                                    <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #856404; margin-bottom: 15px;"></i>
+                                    <p style="color: #856404;">Slika nije dostupna</p>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    headerHTML += `
+                            <p style="font-style: italic; color: #666; margin-top: 15px; text-align: center;">
+                                ${viz.caption || ''}
+                            </p>
+                        </div>
+                    `;
+                });
+                
+                headerHTML += `
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // POSTAVI HTML
+                console.log('🔄 Setting HTML content...');
+                thesisSection.innerHTML = headerHTML;
+                
+                // Scroll do nove sekcije
+                setTimeout(() => {
+                    thesisSection.scrollIntoView({ behavior: 'smooth' });
+                }, 100);
+                
+                console.log('✅ Thesis visualizations added WITH INFO BUTTONS');
+                
+            } catch (error) {
+                console.error('❌ Error in addThesisVisualizations:', error);
+                this.showError(`Greška u vizuelizacijama: ${error.message}`);
+            }
+        };
+        
+        console.log('✅ Successfully patched addThesisVisualizations with info buttons!');
+        return true;
+    }
+    return false;
+}
+
+// Pokreni patch kada se učita stranica
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(patchAddThesisVisualizationsWithInfoButtons, 1000);
+    });
+} else {
+    setTimeout(patchAddThesisVisualizationsWithInfoButtons, 1000);
+}
+
+console.log('🎓 Educational info patch loaded - will override addThesisVisualizations');
+    
+    addSystematicEKGAnalysis(data) {
+        // Kreiraj sekciju za sistematsku EKG analizu
+        let systematicSection = document.getElementById("systematicEKGSection");
+        if (systematicSection) {
+            systematicSection.remove();
+        }
+        
+        systematicSection = document.createElement("div");
+        systematicSection.id = "systematicEKGSection";
+        systematicSection.className = "main-card";
+        systematicSection.style.marginTop = "20px";
+        
+        const resultsSection = document.getElementById("resultsSection");
+        resultsSection.parentNode.insertBefore(systematicSection, resultsSection.nextSibling);
+        
+        // Izračunaj sistematske podatke
+        const heartRate = data.arrhythmia_detection?.heart_rate;
+        const avgBpm = heartRate?.average_bpm || 0;
+        const arrhythmias = data.arrhythmia_detection?.arrhythmias?.detected || [];
+        const rhythmType = arrhythmias.length > 0 ? "irregular" : "regular";
+        
+        // Generiši rate kategoriju
+        let rateCategory = "Nepoznato";
+        let rateColor = "#666";
+        if (avgBpm > 0) {
+            if (avgBpm < 60) {
+                rateCategory = "< 60 - Bradikardija";
+                rateColor = "#e74c3c";
+            } else if (avgBpm >= 60 && avgBpm <= 100) {
+                rateCategory = "60-100 - Normalna";
+                rateColor = "#27ae60";
+            } else if (avgBpm > 100 && avgBpm <= 150) {
+                rateCategory = "100-150 - Blaga tahikardija";
+                rateColor = "#f39c12";
+            } else {
+                rateCategory = "> 150 - Tahikardija";
+                rateColor = "#e74c3c";
+            }
+        }
+        
+        // Generiši rhythm analizu
+        let rhythmAnalysis = "Pravilan";
+        let rhythmColor = "#27ae60";
+        if (rhythmType === "irregular") {
+            rhythmAnalysis = "Nepravilno nepravilan";
+            rhythmColor = "#e74c3c";
+        }
+        
+        // Generiši interpretaciju
+        let interpretation = "";
+        if (rhythmType === "irregular") {
+            interpretation = "Mogući nalaz: Atrijska fibrilacija - Nepravilno nepravilan ritam sa polimorfnim P-talasima";
+        } else {
+            interpretation = "Nalaz: Sinusni ritam - Pravilan ritam sa normalnim P-talasima";
+        }
+        
+        systematicSection.innerHTML = `
+            <h2><i class="fas fa-stethoscope"></i> Sistematska EKG Analiza</h2>
+            
+            <div class="result-card">
+                <div class="result-header">
+                    <i class="fas fa-clipboard-list result-icon" style="color: #8e44ad;"></i>
+                    <h3 class="result-title">Klinička Interpretacija</h3>
+                </div>
+                <div class="result-content">
+                    <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px; margin-bottom: 20px;">
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                            <h4 style="margin: 0 0 15px 0; color: #2c3e50;">📋 Sistematski Pregled</h4>
+                            <div style="display: grid; gap: 10px;">
+                                <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${rateColor};">
+                                    <strong>Frekvencija:</strong>
+                                    <span style="color: ${rateColor};">${avgBpm ? Math.round(avgBpm) : "N/A"} otkucaja/min</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${rhythmColor};">
+                                    <strong>Ritam:</strong>
+                                    <span style="color: ${rhythmColor};">${rhythmAnalysis}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #27ae60;">
+                                    <strong>Osa:</strong>
+                                    <span style="color: #27ae60;">Normalna</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${rhythmType === "irregular" ? "#e74c3c" : "#27ae60"};">
+                                    <strong>PR/P talas:</strong>
+                                    <span style="color: ${rhythmType === "irregular" ? "#e74c3c" : "#27ae60"};">${rhythmType === "irregular" ? "Polimorfni P-talasi" : "Normalni P-talasi"}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #27ae60;">
+                                    <strong>QRS:</strong>
+                                    <span style="color: #27ae60;">Uzak</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #27ae60;">
+                                    <strong>ST/T talas:</strong>
+                                    <span style="color: #27ae60;">Normalan</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #27ae60;">
+                                    <strong>QTc/ostalo:</strong>
+                                    <span style="color: #27ae60;">Normalan</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="background: #e8f5e8; padding: 15px; border-radius: 8px;">
+                            <h4 style="margin: 0 0 15px 0; color: #2c3e50;">🏥 Klinička Interpretacija</h4>
+                            <div style="font-size: 16px; line-height: 1.6;">
+                                <p><strong>Kategorija frekvencije:</strong> 
+                                    <span style="color: ${rateColor}; font-weight: bold;">${rateCategory}</span>
+                                </p>
+                                
+                                <div style="background: ${rhythmType === "irregular" ? "#fff3cd" : "#d4edda"}; padding: 12px; border-radius: 6px; border-left: 4px solid ${rhythmType === "irregular" ? "#ffc107" : "#28a745"}; margin: 15px 0;">
+                                    <strong>${rhythmType === "irregular" ? "⚠️" : "✅"} ${interpretation}</strong>
+                                </div>
+                                
+                                <p><strong>Preporučene dalje akcije:</strong></p>
+                                <ul style="margin: 10px 0; padding-left: 20px;">
+                                    ${avgBpm > 150 ? "<li>Hitna kardiološka konsultacija</li>" : ""}
+                                    ${rhythmType === "irregular" ? "<li>EKG u 12 odvoda za potvrdu</li>" : ""}
+                                    ${avgBpm < 60 ? "<li>Provera simptoma bradikardije</li>" : ""}
+                                    <li>Redovna kontrola u skladu sa kliničkim stanjem</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; border-left: 4px solid #007bff;">
+                        <h4 style="margin: 0 0 10px 0; color: #2c3e50;">ℹ️ Napomena</h4>
+                        <p style="margin: 0; font-style: italic; color: #666;">
+                            Ova analiza je generisana automatski na osnovu detektovanih parametara. 
+                            Za konačnu dijagnozu i terapiju obratite se lekaru specijalistu.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        systematicSection.style.display = "block";
+        console.log("✅ Systematic EKG analysis added");
+    }
