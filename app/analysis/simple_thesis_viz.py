@@ -70,8 +70,9 @@ def create_simple_thesis_visualizations(ekg_signal, fs, analysis_results, annota
         print("DEBUG v3.1: ISPRAVKA - Generiše se slika 3 kroz MIT-BIH funkciju")
         print(f"DEBUG v3.1: annotations = {type(annotations)}, value = {annotations}")
         
-        if annotations and annotations.get('r_peaks'):
-            print("DEBUG v3.1: Ima annotations sa r_peaks - pozivam create_mitbih_comparison_plot")
+        if annotations and annotations.get('r_peaks') and len(annotations.get('r_peaks', [])) > 0:
+            print(f"DEBUG v3.1: Ima annotations sa {len(annotations['r_peaks'])} r_peaks - pozivam create_mitbih_comparison_plot")
+            print(f"DEBUG v3.1: Prvi R-peak: {annotations['r_peaks'][0] if annotations['r_peaks'] else 'None'}")
             mitbih_img = create_mitbih_comparison_plot(ekg_signal, fs, analysis_results, annotations)
             if mitbih_img:
                 print("DEBUG v3.1: create_mitbih_comparison_plot uspešna")
@@ -309,35 +310,59 @@ def create_mitbih_comparison_plot(ekg_signal, fs, analysis_results, annotations)
         # Gornji graf - Detaljno poređenje
         ax1.plot(time_axis, signal_segment, 'b-', linewidth=1, alpha=0.7, label='EKG Signal')
         
-        # Naši R-pikovi
+        # Naši R-pikovi - ISPRAVKA v3.1: Flatten nested lists
         r_peaks = analysis_results.get('arrhythmia_detection', {}).get('r_peaks', [])
         if r_peaks:
-            valid_peaks = [peak for peak in r_peaks if isinstance(peak, (int, float)) and 0 <= peak < max_samples]
+            # Flatten nested lists ako su R-pikovi u nested format
+            flat_r_peaks = []
+            for peak in r_peaks:
+                if isinstance(peak, (list, tuple)):
+                    flat_r_peaks.extend([int(p) for p in peak if isinstance(p, (int, float))])
+                elif isinstance(peak, (int, float)):
+                    flat_r_peaks.append(int(peak))
+            
+            valid_peaks = [peak for peak in flat_r_peaks if 0 <= peak < max_samples]
             if valid_peaks:
-                peak_times = np.array(valid_peaks) / fs
-                peak_amplitudes = signal_segment[valid_peaks]
-                ax1.plot(peak_times, peak_amplitudes, 'ro', markersize=8, 
-                        label=f'Naš algoritam ({len(valid_peaks)} R-pikova)', alpha=0.8)
+                try:
+                    peak_times = np.array(valid_peaks) / fs
+                    peak_amplitudes = [signal_segment[i] for i in valid_peaks]  # Bezbednije indexiranje
+                    ax1.plot(peak_times, peak_amplitudes, 'ro', markersize=8, 
+                            label=f'Naš algoritam ({len(valid_peaks)} R-pikova)', alpha=0.8)
+                except (IndexError, TypeError) as e:
+                    print(f"DEBUG v3.1: R-peaks indexing error in main plot: {e}")
+                    print(f"DEBUG v3.1: valid_peaks sample: {valid_peaks[:5] if valid_peaks else 'empty'}")
+                    print(f"DEBUG v3.1: max_samples: {max_samples}, signal_length: {len(signal_segment)}")
         
-        # MIT-BIH anotacije
+        # MIT-BIH anotacije - ISPRAVKA v3.1
         mit_r_peaks = annotations.get('r_peaks', [])
+        print(f"DEBUG v3.1: MIT-BIH r_peaks dobijeni: {len(mit_r_peaks)}")
+        mit_samples = []
+        
         if mit_r_peaks:
             # Ekstraktuj sample pozicije iz MIT-BIH anotacija
-            mit_samples = []
-            for annotation in mit_r_peaks:
+            for i, annotation in enumerate(mit_r_peaks):
                 if isinstance(annotation, dict) and 'time_samples' in annotation:
                     sample = annotation['time_samples']
+                    print(f"DEBUG v3.1: R-peak {i}: sample={sample}, time={annotation.get('time_seconds', 'N/A')}s")
                     if 0 <= sample < max_samples:
                         mit_samples.append(sample)
                 elif isinstance(annotation, (int, float)):
                     if 0 <= annotation < max_samples:
                         mit_samples.append(int(annotation))
+                        
+            print(f"DEBUG v3.1: Validnih MIT-BIH samples u opsegu: {len(mit_samples)} od {len(mit_r_peaks)}")
             
             if mit_samples:
-                mit_times = np.array(mit_samples) / fs
-                mit_amplitudes = signal_segment[mit_samples]
-                ax1.plot(mit_times, mit_amplitudes, 'g^', markersize=6, 
-                        label=f'MIT-BIH ekspert ({len(mit_samples)} anotacija)', alpha=0.8)
+                try:
+                    mit_times = np.array(mit_samples) / fs
+                    mit_amplitudes = [signal_segment[i] for i in mit_samples]  # Bezbednije indexiranje
+                    ax1.plot(mit_times, mit_amplitudes, 'g^', markersize=6, 
+                            label=f'MIT-BIH ekspert ({len(mit_samples)} anotacija)', alpha=0.8)
+                    print(f"DEBUG v3.1: MIT-BIH plot uspešno - {len(mit_samples)} tačaka")
+                except (IndexError, TypeError) as e:
+                    print(f"DEBUG v3.1: MIT-BIH indexing error: {e}")
+                    print(f"DEBUG v3.1: mit_samples sample: {mit_samples[:5] if mit_samples else 'empty'}")
+                    print(f"DEBUG v3.1: max_samples: {max_samples}, signal_length: {len(signal_segment)}")
         
         ax1.set_xlabel('Vreme (s)')
         ax1.set_ylabel('Amplituda')
@@ -353,23 +378,29 @@ def create_mitbih_comparison_plot(ekg_signal, fs, analysis_results, annotations)
         
         ax2.plot(time_zoom, signal_zoom, 'b-', linewidth=2, label='EKG Signal (detalj)')
         
-        # Naši R-pikovi u zoom-u
-        if r_peaks:
+        # Naši R-pikovi u zoom-u - ISPRAVKA v3.1
+        if r_peaks and 'valid_peaks' in locals():
             zoom_peaks = [peak for peak in valid_peaks if peak < zoom_samples]
             if zoom_peaks:
-                zoom_peak_times = np.array(zoom_peaks) / fs
-                zoom_peak_amplitudes = signal_segment[zoom_peaks]
-                ax2.plot(zoom_peak_times, zoom_peak_amplitudes, 'ro', markersize=10, 
-                        label=f'Naš algoritam ({len(zoom_peaks)})', alpha=0.8)
+                try:
+                    zoom_peak_times = np.array(zoom_peaks) / fs
+                    zoom_peak_amplitudes = [signal_segment[i] for i in zoom_peaks]  # Bezbednije indexiranje
+                    ax2.plot(zoom_peak_times, zoom_peak_amplitudes, 'ro', markersize=10, 
+                            label=f'Naš algoritam ({len(zoom_peaks)})', alpha=0.8)
+                except (IndexError, TypeError) as e:
+                    print(f"DEBUG v3.1: Zoom R-peaks indexing error: {e}")
         
-        # MIT-BIH anotacije u zoom-u
+        # MIT-BIH anotacije u zoom-u - ISPRAVKA v3.1
         if mit_r_peaks and mit_samples:
             zoom_mit = [sample for sample in mit_samples if sample < zoom_samples]
             if zoom_mit:
-                zoom_mit_times = np.array(zoom_mit) / fs
-                zoom_mit_amplitudes = signal_segment[zoom_mit]
-                ax2.plot(zoom_mit_times, zoom_mit_amplitudes, 'g^', markersize=8, 
-                        label=f'MIT-BIH ekspert ({len(zoom_mit)})', alpha=0.8)
+                try:
+                    zoom_mit_times = np.array(zoom_mit) / fs
+                    zoom_mit_amplitudes = [signal_segment[i] for i in zoom_mit]  # Bezbednije indexiranje
+                    ax2.plot(zoom_mit_times, zoom_mit_amplitudes, 'g^', markersize=8, 
+                            label=f'MIT-BIH ekspert ({len(zoom_mit)})', alpha=0.8)
+                except (IndexError, TypeError) as e:
+                    print(f"DEBUG v3.1: Zoom MIT-BIH indexing error: {e}")
         
         ax2.set_xlabel('Vreme (s)')
         ax2.set_ylabel('Amplituda')
@@ -449,10 +480,17 @@ def create_synthetic_mitbih_comparison(ekg_signal, fs, analysis_results):
                     synthetic_peak = max(0, min(max_samples-1, peak + offset))
                     synthetic_peaks.append(synthetic_peak)
                 
-                synthetic_times = np.array(synthetic_peaks) / fs
-                synthetic_amplitudes = signal_segment[synthetic_peaks]
-                ax1.plot(synthetic_times, synthetic_amplitudes, 'g^', markersize=6, 
-                        label=f'Sintetičke MIT-BIH anotacije ({len(synthetic_peaks)})', alpha=0.8)
+                try:
+                    synthetic_times = np.array(synthetic_peaks) / fs
+                    synthetic_amplitudes = [signal_segment[i] for i in synthetic_peaks]  # Bezbednije indexiranje
+                    ax1.plot(synthetic_times, synthetic_amplitudes, 'g^', markersize=6, 
+                            label=f'Sintetičke MIT-BIH anotacije ({len(synthetic_peaks)})', alpha=0.8)
+                    print(f"DEBUG v3.1: Synthetic MIT-BIH plot uspešno - {len(synthetic_peaks)} tačaka")
+                except (IndexError, TypeError) as e:
+                    print(f"DEBUG v3.1: Synthetic MIT-BIH indexing error: {e}")
+                    print(f"DEBUG v3.1: synthetic_peaks sample: {synthetic_peaks[:5] if synthetic_peaks else 'empty'}")
+                    print(f"DEBUG v3.1: max_samples: {max_samples}, signal_length: {len(signal_segment)}")
+                    return None
         
         ax1.set_xlabel('Vreme (s)')
         ax1.set_ylabel('Amplituda')

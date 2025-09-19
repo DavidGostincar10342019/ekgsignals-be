@@ -460,6 +460,12 @@ def analyze_wfdb_files():
         # 8. VRAĆENO v3.1: WFDB vizuelizacije sa optimizovanom slikom 3
         try:
             print("DEBUG v3.1 ROUTES: Pozivam OPTIMIZOVANE WFDB vizuelizacije...")
+            print(f"DEBUG v3.1 ROUTES: Annotations type: {type(annotations)}")
+            print(f"DEBUG v3.1 ROUTES: Annotations keys: {list(annotations.keys()) if isinstance(annotations, dict) else 'Not dict'}")
+            if annotations and 'r_peaks' in annotations:
+                print(f"DEBUG v3.1 ROUTES: R-peaks count: {len(annotations['r_peaks'])}")
+                if annotations['r_peaks']:
+                    print(f"DEBUG v3.1 ROUTES: Prvi R-peak: {annotations['r_peaks'][0]}")
             results["thesis_visualizations"] = create_simple_thesis_visualizations(
                 signal, fs, results, annotations=annotations
             )
