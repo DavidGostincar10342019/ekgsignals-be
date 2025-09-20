@@ -289,6 +289,12 @@ class EKGAnalyzer {
         // Store data for detailed analysis
         this.analysisData = data;
 
+        // v3.2: Automatski pozovi naprednu analizu za raw signal fajlove
+        console.log('🚀 v3.2: Auto-triggering additional analysis for raw signal...');
+        setTimeout(() => {
+            this.showAdditionalAnalysis();
+        }, 1000);
+
         // Populate structured results
         if (data.advanced_cardiology && !data.advanced_cardiology.error) {
             console.log('✅ Using advanced cardiology analysis');
@@ -298,12 +304,12 @@ class EKGAnalyzer {
             this.populateStructuredResults(data);
         }
         
-        // VRAĆENO v3.1: Optimizovane vizuelizacije
+        // v3.2: Optimizovane vizuelizacije (automatski prikazane)
         if (data.thesis_visualizations && !data.thesis_visualizations.error) {
-            console.log('📊 v3.1 Using OPTIMIZED thesis visualizations');
+            console.log('📊 v3.2 Using OPTIMIZED thesis visualizations (auto-displayed)');
             this.addThesisVisualizations(data.thesis_visualizations);
         } else {
-            console.log('⚠️ v3.1 No thesis visualizations available');
+            console.log('⚠️ v3.2 No thesis visualizations available');
         }
 
         // Dodaj analizu na osnovu tipa podataka
@@ -314,6 +320,12 @@ class EKGAnalyzer {
             // Za sirove podatke - detaljana klinička analiza
             this.addAdvancedClinicalAnalysis(data);
         }
+
+        // v3.2: Automatski pozovi naprednu analizu uvek kada se završi analiza
+        console.log('🚀 v3.2: Auto-triggering additional analysis...');
+        setTimeout(() => {
+            this.showAdditionalAnalysis();
+        }, 1000); // Kratka pauza da se osnovni rezultati učitaju
 
         // Scroll to results
         resultsSection.scrollIntoView({ behavior: 'smooth' });
@@ -1098,6 +1110,12 @@ class EKGAnalyzer {
         // Store data for detailed analysis
         this.analysisData = data;
 
+        // v3.2: Automatski pozovi naprednu analizu za raw signal fajlove (drugi poziv)
+        console.log('🚀 v3.2: Auto-triggering additional analysis for raw signal (second call)...');
+        setTimeout(() => {
+            this.showAdditionalAnalysis();
+        }, 1000);
+
         // Show generate EKG image button for raw signal data
         this.showGenerateImageButton(data);
 
@@ -1214,6 +1232,12 @@ class EKGAnalyzer {
 
         // Store data for detailed analysis
         this.analysisData = data;
+
+        // v3.2: Automatski pozovi naprednu analizu za WFDB fajlove
+        console.log('🚀 v3.2: Auto-triggering additional analysis for WFDB...');
+        setTimeout(() => {
+            this.showAdditionalAnalysis();
+        }, 1000);
 
         // Show generate EKG image button for WFDB data
         this.showGenerateImageButton(data);
@@ -2832,25 +2856,239 @@ class EKGAnalyzer {
 
     // Show additional analysis
     showAdditionalAnalysis() {
-        console.log('🐛 DEBUG: Testing visualizations...');
-        console.log('Analysis data:', this.analysisData);
+        console.log('🚀 v3.2: Auto-displaying additional analysis...');
         
-        if (this.analysisData && this.analysisData.thesis_visualizations) {
-            console.log('✅ thesis_visualizations postoje:', this.analysisData.thesis_visualizations);
-            console.log('Keys:', Object.keys(this.analysisData.thesis_visualizations));
-            
-            if (this.analysisData.thesis_visualizations.error) {
-                console.log('❌ Error u vizuelizacijama:', this.analysisData.thesis_visualizations.error);
-                alert('Error: ' + this.analysisData.thesis_visualizations.error);
-            } else {
-                console.log('🎯 Pokušavam da dodam vizuelizacije...');
-                this.addThesisVisualizations(this.analysisData.thesis_visualizations);
-                alert('✅ Vizuelizacije dodane! Skroluj dole da ih vidiš.');
-            }
-        } else {
-            console.log('❌ Nema thesis_visualizations u analysis data');
-            alert('❌ Nema thesis_visualizations podataka. Backend možda ne generiše vizuelizacije.');
+        if (!this.analysisData) {
+            console.log('⚠️ v3.2: No analysis data available for additional analysis');
+            return;
         }
+
+        try {
+            // v3.2: NAJВАЖНИЈЕ - pozovi originalne thesis vizualizacije!
+            if (this.analysisData.thesis_visualizations && !this.analysisData.thesis_visualizations.error) {
+                console.log('📊 v3.2: Adding ORIGINAL thesis visualizations (the actual charts!)');
+                this.addThesisVisualizations(this.analysisData.thesis_visualizations);
+            } else {
+                console.log('⚠️ v3.2: No thesis visualizations available - trying to generate...');
+                // Pokušaj da generiše vizualizacije ako ne postoje
+                this.requestThesisVisualizations();
+            }
+            
+            // v3.2: Uklonjene dodatne sekcije - samo thesis vizualizacije
+            
+            console.log('✅ v3.2: Additional analysis with visualizations displayed successfully');
+            
+        } catch (error) {
+            console.error('❌ v3.2: Error in showAdditionalAnalysis:', error);
+        }
+    }
+
+    // v3.2: Zahtevaj thesis vizualizacije ako ne postoje
+    async requestThesisVisualizations() {
+        if (!this.analysisData) return;
+        
+        try {
+            console.log('🔄 v3.2: Requesting thesis visualizations...');
+            
+            const response = await fetch('/api/analyze/complete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    raw_signal: this.analysisData.signal_info?.raw_signal || null,
+                    fs: this.analysisData.signal_info?.sampling_frequency || 250,
+                    force_visualizations: true
+                })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                if (result.thesis_visualizations && !result.thesis_visualizations.error) {
+                    console.log('✅ v3.2: Got thesis visualizations, adding them now...');
+                    this.addThesisVisualizations(result.thesis_visualizations);
+                }
+            }
+        } catch (error) {
+            console.error('❌ v3.2: Error requesting visualizations:', error);
+        }
+    }
+
+    // v3.2: Uklonjena detailedAnalysisSection
+
+    // v3.2: Dodaj thesis vizualizacije u detaljnu sekciju
+    addThesisVisualizationsToDetailed(vizData) {
+        const container = document.getElementById('visualizationsContainer');
+        if (!container) return;
+        
+        // Slika 1: Time-domain
+        if (vizData.slika_1_time_domain_base64) {
+            const img1HTML = `
+                <div class="result-card">
+                    <div class="result-header">
+                        <i class="fas fa-chart-line result-icon" style="color: #007bff;"></i>
+                        <h3 class="result-title">Slika 1: Time-Domain Analiza</h3>
+                        <span style="background: #007bff; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; margin-left: 10px;">🚀 Auto v3.2</span>
+                    </div>
+                    <div class="result-content">
+                        <img src="${vizData.slika_1_time_domain_base64}" alt="Time-Domain Analiza" style="width: 100%; max-width: 800px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                        <p style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 6px; color: #666; font-size: 0.9em;">
+                            <strong>📊 Opis:</strong> ${vizData.slika_1_opis || 'EKG signal u vremenskom domenu sa detektovanim R-pikovima i osnovnim parametrima srčanog ritma'}
+                        </p>
+                    </div>
+                </div>
+            `;
+            container.innerHTML += img1HTML;
+        }
+        
+        // Slika 2: FFT spektar
+        if (vizData.slika_2_fft_spektar_base64) {
+            const img2HTML = `
+                <div class="result-card">
+                    <div class="result-header">
+                        <i class="fas fa-wave-square result-icon" style="color: #28a745;"></i>
+                        <h3 class="result-title">Slika 2: FFT Spektralna Analiza</h3>
+                        <span style="background: #28a745; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; margin-left: 10px;">🔬 Spektar</span>
+                    </div>
+                    <div class="result-content">
+                        <img src="${vizData.slika_2_fft_spektar_base64}" alt="FFT Spektar" style="width: 100%; max-width: 800px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                        <p style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 6px; color: #666; font-size: 0.9em;">
+                            <strong>📈 Opis:</strong> ${vizData.slika_2_opis || 'Fourier transformacija EKG signala - frekventni spektar sa dominantnim frekvencijama i harmonicima'}
+                        </p>
+                    </div>
+                </div>
+            `;
+            container.innerHTML += img2HTML;
+        }
+        
+        // Slika 3: Z-ravan
+        if (vizData.slika_3_z_raven_base64) {
+            const img3HTML = `
+                <div class="result-card">
+                    <div class="result-header">
+                        <i class="fas fa-project-diagram result-icon" style="color: #dc3545;"></i>
+                        <h3 class="result-title">Slika 3: Z-Transform Pole-Zero Analiza</h3>
+                        <span style="background: #dc3545; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; margin-left: 10px;">⚙️ Z-Transform</span>
+                    </div>
+                    <div class="result-content">
+                        <img src="${vizData.slika_3_z_raven_base64}" alt="Z-Ravan" style="width: 100%; max-width: 800px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                        <p style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 6px; color: #666; font-size: 0.9em;">
+                            <strong>⚙️ Opis:</strong> ${vizData.slika_3_opis || 'Z-transformacija - polovi i nule digitalnog filtera sa analizom stabilnosti sistema'}
+                        </p>
+                    </div>
+                </div>
+            `;
+            container.innerHTML += img3HTML;
+        }
+    }
+
+    // v3.2: Dodaj naprednu signal processing analizu
+    addAdvancedSignalProcessing() {
+        const container = document.getElementById('visualizationsContainer');
+        if (!container || !this.analysisData) return;
+        
+        const data = this.analysisData;
+        const fftData = data.fft_analysis;
+        const zData = data.z_transform;
+        
+        const processingHTML = `
+            <div class="result-card">
+                <div class="result-header">
+                    <i class="fas fa-microchip result-icon" style="color: #6f42c1;"></i>
+                    <h3 class="result-title">Signal Processing Pipeline v3.2</h3>
+                    <span style="background: #6f42c1; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; margin-left: 10px;">🔧 Pipeline</span>
+                </div>
+                <div class="result-content">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                            <h4>🔬 FFT Spektralna Analiza</h4>
+                            ${fftData && !fftData.error ? `
+                                <div style="display: grid; gap: 8px;">
+                                    <div style="padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #007bff;">
+                                        <strong>Peak frekvencija:</strong> ${fftData.peak_frequency_hz?.toFixed(2)} Hz
+                                    </div>
+                                    <div style="padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #28a745;">
+                                        <strong>Peak amplituda:</strong> ${fftData.peak_amplitude?.toFixed(4)}
+                                    </div>
+                                    <div style="padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #ffc107;">
+                                        <strong>Dominant freq:</strong> ${fftData.dominant_frequency_hz?.toFixed(2)} Hz
+                                    </div>
+                                </div>
+                            ` : '<p style="color: #666;">FFT analiza nedostupna</p>'}
+                        </div>
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                            <h4>⚙️ Z-Transform Analiza</h4>
+                            ${zData && !zData.error ? `
+                                <div style="display: grid; gap: 8px;">
+                                    <div style="padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #dc3545;">
+                                        <strong>Polovi:</strong> ${zData.poles?.length || 0}
+                                    </div>
+                                    <div style="padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #17a2b8;">
+                                        <strong>Nule:</strong> ${zData.zeros?.length || 0}
+                                    </div>
+                                    <div style="padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${zData.stability?.stable ? '#28a745' : '#dc3545'};">
+                                        <strong>Stabilnost:</strong> ${zData.stability?.stable ? 'Stabilan' : 'Nestabilan'}
+                                    </div>
+                                </div>
+                            ` : '<p style="color: #666;">Z-Transform analiza nedostupna</p>'}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.innerHTML += processingHTML;
+    }
+
+    // v3.2: Dodaj napredne metrике
+    addAdvancedMetrics() {
+        const container = document.getElementById('visualizationsContainer');
+        if (!container || !this.analysisData) return;
+        
+        const data = this.analysisData;
+        const signalInfo = data.signal_info;
+        const signalQuality = data.arrhythmia_detection?.signal_quality;
+        
+        const metricsHTML = `
+            <div class="result-card">
+                <div class="result-header">
+                    <i class="fas fa-chart-bar result-icon" style="color: #17a2b8;"></i>
+                    <h3 class="result-title">Napredne Metrике i Status v3.2</h3>
+                    <span style="background: #17a2b8; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; margin-left: 10px;">📊 Metrике</span>
+                </div>
+                <div class="result-content">
+                    <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #2196f3;">
+                        <h4 style="color: #1565c0; margin: 0 0 10px 0;">✅ v3.2 Automatski Prikaz Aktiviran</h4>
+                        <p style="margin: 0; color: #1565c0;">
+                            Sve napredne analize su automatski prikazane: thesis vizualizacije, FFT spektar, Z-transform i signal processing pipeline.
+                        </p>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+                        <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                            <h5 style="margin: 0 0 10px 0; color: #6f42c1;">📈 Signal Info</h5>
+                            <p style="margin: 5px 0;"><strong>Trajanje:</strong> ${signalInfo?.duration_seconds?.toFixed(1)} s</p>
+                            <p style="margin: 5px 0;"><strong>Fs:</strong> ${signalInfo?.sampling_frequency} Hz</p>
+                            <p style="margin: 5px 0;"><strong>Uzoraka:</strong> ${signalInfo?.length}</p>
+                        </div>
+                        <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                            <h5 style="margin: 0 0 10px 0; color: #28a745;">🔊 Kvalitet</h5>
+                            <p style="margin: 5px 0;"><strong>Status:</strong> ${signalQuality?.quality || 'N/A'}</p>
+                            <p style="margin: 5px 0;"><strong>SNR:</strong> ${signalQuality?.snr_db?.toFixed(1)} dB</p>
+                            <p style="margin: 5px 0;"><strong>Source:</strong> ${signalInfo?.source || 'unknown'}</p>
+                        </div>
+                        <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                            <h5 style="margin: 0 0 10px 0; color: #dc3545;">🚀 v3.2 Status</h5>
+                            <p style="margin: 5px 0;"><strong>Gateway:</strong> Automatski</p>
+                            <p style="margin: 5px 0;"><strong>Vizualizacije:</strong> Prikazane</p>
+                            <p style="margin: 5px 0;"><strong>Pipeline:</strong> Aktiviran</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.innerHTML += metricsHTML;
     }
 
     generateHTMLReport(data) {

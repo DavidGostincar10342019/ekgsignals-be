@@ -946,7 +946,7 @@ def api_info():
             "/generate/pdf-from-analysis": "POST - 📄 PDF iz postojećih rezultata analize",
             "/info": "GET - Ove informacije"
         },
-        "version": "3.0_auto_advanced_debug",
+        "version": "3.2_auto_advanced_analysis",
         "description": "EKG analiza API - analiza slika i sirovih signala",
         "scientific_methods": [
             "Spatial Filling Index (Faust et al., 2004)",
@@ -1341,7 +1341,7 @@ def generate_complete_analysis_report():
             "report_metadata": {
                 "generated_at": datetime.now().isoformat(),
                 "title": title,
-                "analysis_version": "3.1_production"
+                "analysis_version": "3.2_auto_advanced"
             },
             "signal_information": basic_info,
             "cardiac_analysis": {
