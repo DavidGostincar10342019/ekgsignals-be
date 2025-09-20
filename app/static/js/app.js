@@ -2,6 +2,7 @@
 class EKGAnalyzer {
     constructor() {
         this.currentImage = null;
+        this.currentRawSignal = null;
         this.isProcessing = false;
         this.init();
     }
@@ -34,18 +35,24 @@ class EKGAnalyzer {
 
         // Raw signal import button
         document.getElementById('rawSignalBtn').addEventListener('click', () => {
-            this.toggleRawSignalInfo();
             document.getElementById('rawSignalInput').click();
         });
 
-        // Raw signal file input
+        // Raw signal file input  
         document.getElementById('rawSignalInput').addEventListener('change', (e) => {
             if (e.target.files.length > 1) {
-                // Multiple files - možda WFDB format
+                // Multiple files - WFDB format (.hea, .dat, .atr)
                 this.handleWFDBFiles(e.target.files);
             } else {
-                // Single file - CSV/TXT/JSON
-                this.handleRawSignalFile(e.target.files[0]);
+                // Single file - check extension
+                const file = e.target.files[0];
+                if (file.name.endsWith('.hea') || file.name.endsWith('.dat') || file.name.endsWith('.atr')) {
+                    this.showError('WFDB fajlovi se moraju učitati zajedno (.hea + .dat + .atr). Molimo odaberite sve fajlove istovremeno.');
+                    return;
+                } else {
+                    // CSV/TXT/JSON single file
+                    this.handleRawSignalFile(file);
+                }
             }
         });
 
@@ -54,17 +61,12 @@ class EKGAnalyzer {
             this.analyzeImage();
         });
 
-        // New analysis button
-        document.getElementById('newAnalysisBtn').addEventListener('click', () => {
-            this.resetApp();
-        });
+        // New analysis button - removed from initial screen
 
-        // Generate EKG Image button (will be added dynamically)
+        // Generate EKG Image button - removed as it has no function
+        
+        // Info button for diagram explanations
         document.addEventListener('click', (e) => {
-            if (e.target && e.target.id === 'generateEkgImageBtn') {
-                this.generateEducationalEkgImage();
-            }
-            // Info button for diagram explanations
             if (e.target && e.target.classList.contains('info-btn')) {
                 const panel = e.target.closest('.result-card').querySelector('.explanation-panel');
                 if (panel) {
@@ -168,31 +170,81 @@ class EKGAnalyzer {
     }
 
     async analyzeImage() {
-        if (!this.currentImage || this.isProcessing) return;
+        if ((!this.currentImage && !this.currentRawSignal) || this.isProcessing) return;
 
         this.isProcessing = true;
-        this.showUploadProgress();
+        this.showLoadingAnimation();
 
         try {
-            // Convert image to base64 with progress
-            const base64Image = await this.fileToBase64WithProgress(this.currentImage);
+            let requestBody;
+            let requestMessage;
             
-            // Update progress for upload
-            this.updateProgress(50, 'Šalje sliku na server...', '📤');
+            if (this.currentImage) {
+                // Image analysis
+                const base64Image = await this.fileToBase64(this.currentImage);
+                requestBody = JSON.stringify({
+                    image: base64Image,
+                    fs: 250
+                });
+                requestMessage = 'Šalje sliku na server...';
+            } else if (this.currentRawSignal) {
+                if (this.currentRawSignal.type === 'wfdb_import') {
+                    // WFDB files analysis
+                    const formData = new FormData();
+                    for (let file of this.currentRawSignal.files) {
+                        if (file.name.endsWith('.dat') || file.name.endsWith('.hea') || 
+                            file.name.endsWith('.atr') || file.name.endsWith('.xws')) {
+                            formData.append('file', file);
+                        }
+                    }
+                    
+                    // Send to WFDB endpoint first, then to complete analysis
+                    const wfdbResponse = await fetch('/analyze/wfdb', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (!wfdbResponse.ok) {
+                        const error = await wfdbResponse.json();
+                        throw new Error(error.error || 'Greška pri analizi WFDB fajlova');
+                    }
+                    
+                    const wfdbResult = await wfdbResponse.json();
+                    if (wfdbResult.error) {
+                        throw new Error(wfdbResult.error);
+                    }
+                    
+                    // Use the signal from WFDB result for complete analysis
+                    requestBody = JSON.stringify({
+                        signal: wfdbResult.signal || wfdbResult.raw_signal,
+                        fs: wfdbResult.fs || 250,
+                        signal_type: 'wfdb_import'
+                    });
+                    requestMessage = 'Analizira WFDB signal...';
+                } else {
+                    // Raw signal analysis
+                    requestBody = JSON.stringify({
+                        raw_signal_data: this.currentRawSignal.data,
+                        signal_type: this.currentRawSignal.type,
+                        fs: this.currentRawSignal.fs || 250
+                    });
+                    requestMessage = 'Šalje signal na server...';
+                }
+            }
+            
+            // Update loading step
+            this.updateLoadingStep(2, requestMessage);
             
             // Send to complete analysis API
-            const response = await fetch('/api/analyze/complete', {
+            const response = await fetch('/analyze/complete', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    image: base64Image,
-                    fs: 250
-                })
+                body: requestBody
             });
 
-            this.updateProgress(75, 'Obrađuje sliku...', '🔬');
+            this.updateLoadingStep(3, 'Obrađuje podatke...');
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -204,61 +256,214 @@ class EKGAnalyzer {
                 throw new Error(result.error);
             }
 
-            this.updateProgress(100, 'Analiza završena!', '✅');
+            this.updateLoadingStep(4, 'Finalizuje rezultate...');
             
             // Store results for PDF generation
             window.currentAnalysisResults = result;
-            this.analysisData = result; // Ensure analysisData is stored in the instance
+            this.analysisData = result;
             
-            // Hide progress and show results
+            // Hide loading and show results
             setTimeout(() => {
-                this.hideUploadProgress();
+                this.hideLoadingAnimation();
                 this.displayResults(result);
-            }, 500);
+            }, 1000);
             
         } catch (error) {
             console.error('Analysis error:', error);
-            this.hideUploadProgress();
+            this.hideLoadingAnimation();
             this.showError(`Greška pri analizi: ${error.message}`);
         } finally {
             this.isProcessing = false;
         }
     }
 
-    fileToBase64WithProgress(file) {
+    fileToBase64(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
-            
-            reader.onloadstart = () => {
-                this.updateProgress(10, 'Čita sliku...', '📖');
-            };
-            
-            reader.onprogress = (e) => {
-                if (e.lengthComputable) {
-                    const progress = Math.round((e.loaded / e.total) * 30) + 10; // 10-40%
-                    this.updateProgress(progress, 'Konvertuje sliku...', '🔄');
-                }
-            };
-            
-            reader.onload = () => {
-                this.updateProgress(40, 'Priprema za slanje...', '📦');
-                resolve(reader.result);
-            };
-            
+            reader.onload = () => resolve(reader.result);
             reader.onerror = error => reject(error);
             reader.readAsDataURL(file);
         });
     }
 
-    showUploadProgress() {
-        document.getElementById('uploadSection').style.display = 'none';
-        document.getElementById('uploadProgress').style.display = 'block';
-        this.updateProgress(0, 'Priprema...', '⏳');
+    readFileAsText(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+            reader.readAsText(file);
+        });
     }
 
-    hideUploadProgress() {
-        document.getElementById('uploadProgress').style.display = 'none';
+    readFileAsBinary(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    arrayBufferToBase64(buffer) {
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary);
+    }
+
+    showWFDBFileInfo(files) {
+        const previewSection = document.getElementById('imagePreview');
+        const imageInfo = document.getElementById('imageInfo');
+        const previewImage = document.getElementById('previewImage');
+        
+        // Hide image, show file info
+        previewImage.style.display = 'none';
+        previewSection.style.display = 'block';
+        
+        const filesInfo = Array.from(files).map(f => `${f.name} (${(f.size/1024).toFixed(1)} KB)`).join('<br>');
+        const hasAnnotations = Array.from(files).some(f => f.name.endsWith('.atr'));
+        
+        imageInfo.innerHTML = `
+            <strong>📁 WFDB Fajlovi:</strong><br>
+            ${filesInfo}<br><br>
+            <strong>📅 Tip:</strong> WFDB Format<br>
+            <strong>✅ Status:</strong> Spreman za analizu<br>
+            ${hasAnnotations ? '<strong>🏷️ Anotacije:</strong> ✅ Uključene' : '<strong>🏷️ Anotacije:</strong> ❌ Nisu dostupne'}
+        `;
+        
+        // Enable analyze button
+        document.getElementById('analyzeBtn').disabled = false;
+        
+        // Add bounce animation
+        previewSection.classList.add('bounce');
+        setTimeout(() => {
+            previewSection.classList.remove('bounce');
+        }, 600);
+    }
+
+    showRawSignalPreview(file, signal, fs) {
+        const previewSection = document.getElementById('imagePreview');
+        const imageInfo = document.getElementById('imageInfo');
+        const previewImage = document.getElementById('previewImage');
+        
+        // Hide image, show file info
+        previewImage.style.display = 'none';
+        previewSection.style.display = 'block';
+        
+        // Calculate signal statistics
+        const duration = (signal.length / fs).toFixed(2);
+        const minVal = Math.min(...signal).toFixed(3);
+        const maxVal = Math.max(...signal).toFixed(3);
+        const avgVal = (signal.reduce((a, b) => a + b, 0) / signal.length).toFixed(3);
+        
+        imageInfo.innerHTML = `
+            <strong>📁 Sirovi EKG Signal:</strong><br>
+            <strong>📄 Fajl:</strong> ${file.name} (${(file.size/1024).toFixed(1)} KB)<br>
+            <strong>📊 Uzorci:</strong> ${signal.length.toLocaleString()}<br>
+            <strong>⏱️ Trajanje:</strong> ${duration}s (${fs} Hz)<br>
+            <strong>📈 Opseg:</strong> ${minVal} do ${maxVal}<br>
+            <strong>📊 Prosek:</strong> ${avgVal}<br><br>
+            <strong>✅ Status:</strong> <span style="color: #27ae60;">Spreman za analizu</span>
+        `;
+        
+        // Enable analyze button
+        document.getElementById('analyzeBtn').disabled = false;
+        
+        // Add bounce animation
+        previewSection.classList.add('bounce');
+        setTimeout(() => {
+            previewSection.classList.remove('bounce');
+        }, 600);
+        
+        // Show success message
+        this.showSuccess(`Signal uspešno učitan: ${signal.length} uzoraka, ${duration}s`);
+    }
+
+    addNovaAnalizaButton() {
+        // Remove existing button if present
+        const existingButton = document.getElementById('novaAnalizaFinalBtn');
+        if (existingButton) {
+            existingButton.remove();
+        }
+        
+        // Create new button
+        const buttonHTML = `
+            <div id="novaAnalizaFinalBtn" style="text-align: center; padding: 30px 20px; margin-top: 30px; border-top: 2px solid #e9ecef;">
+                <button onclick="location.reload()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 15px 40px; border-radius: 25px; font-size: 1.1rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 6px 20px rgba(102, 126, 234, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(102, 126, 234, 0.3)'">
+                    <i class="fas fa-plus"></i>
+                    Nova Analiza
+                </button>
+            </div>
+        `;
+        
+        // Add button after results section
+        const resultsSection = document.getElementById('resultsSection');
+        if (resultsSection) {
+            resultsSection.insertAdjacentHTML('afterend', buttonHTML);
+        }
+    }
+
+    showLoadingAnimation() {
+        document.getElementById('uploadSection').style.display = 'none';
+        document.getElementById('processingSection').style.display = 'block';
+        this.resetLoadingSteps();
+        this.updateLoadingStep(1, 'Učitavanje podataka...');
+    }
+
+    hideLoadingAnimation() {
+        document.getElementById('processingSection').style.display = 'none';
         document.getElementById('uploadSection').style.display = 'block';
+    }
+
+    resetLoadingSteps() {
+        for (let i = 1; i <= 4; i++) {
+            const step = document.getElementById(`loadingStep${i}`);
+            if (step) {
+                step.classList.remove('active', 'completed');
+            }
+        }
+        const progressFill = document.getElementById('loadingProgressFill');
+        const progressText = document.getElementById('loadingPercentage');
+        if (progressFill) progressFill.style.width = '0%';
+        if (progressText) progressText.textContent = '0%';
+    }
+
+    updateLoadingStep(stepNumber, message) {
+        // Complete previous steps
+        for (let i = 1; i < stepNumber; i++) {
+            const step = document.getElementById(`loadingStep${i}`);
+            if (step) {
+                step.classList.remove('active');
+                step.classList.add('completed');
+            }
+        }
+        
+        // Activate current step
+        const currentStep = document.getElementById(`loadingStep${stepNumber}`);
+        if (currentStep) {
+            currentStep.classList.add('active');
+            currentStep.classList.remove('completed');
+            
+            // Update step text
+            const stepText = currentStep.querySelector('span');
+            if (stepText) {
+                stepText.textContent = message;
+            }
+        }
+        
+        // Update progress bar
+        const progressPercentage = (stepNumber / 4) * 100;
+        const progressFill = document.getElementById('loadingProgressFill');
+        const progressText = document.getElementById('loadingPercentage');
+        
+        if (progressFill) {
+            progressFill.style.width = `${progressPercentage}%`;
+        }
+        if (progressText) {
+            progressText.textContent = `${progressPercentage}%`;
+        }
     }
 
     updateProgress(percentage, message, icon = '') {
@@ -985,7 +1190,7 @@ class EKGAnalyzer {
 
         try {
             // Show progress
-            this.showUploadProgress();
+            this.showLoadingAnimation();
             this.updateProgress(10, 'Čita fajl...', '📂');
 
             // Parse the file based on extension
@@ -1009,45 +1214,28 @@ class EKGAnalyzer {
                 throw new Error('Signal je predugačak (maksimum 100,000 uzoraka)');
             }
 
-            this.updateProgress(50, 'Šalje signal na analizu...', '📤');
+            this.updateProgress(50, 'Priprema pregled signala...', '📋');
 
-            // Send to raw signal analysis API
-            const response = await fetch('/api/analyze/raw-signal', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    signal: signal,
-                    fs: fs,
-                    filename: file.name
-                })
-            });
-
-            this.updateProgress(75, 'Analizira signal...', '🔬');
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Greška pri analizi');
-            }
-
-            const result = await response.json();
+            // Clear any existing image
+            this.currentImage = null;
             
-            if (result.error) {
-                throw new Error(result.error);
-            }
+            // Store the signal for later analysis
+            this.currentRawSignal = {
+                data: signal,
+                type: 'raw_import',
+                fs: fs,
+                filename: file.name
+            };
 
-            this.updateProgress(100, 'Analiza završena!', '✅');
-
-            // Hide progress and show results
-            setTimeout(() => {
-                this.hideUploadProgress();
-                this.displayRawSignalResults(result, file.name, signal.length, fs);
-            }, 500);
+            // Hide progress and show preview
+            this.hideLoadingAnimation();
+            
+            // Show signal preview instead of immediately analyzing
+            this.showRawSignalPreview(file, signal, fs);
 
         } catch (error) {
             console.error('Raw signal analysis error:', error);
-            this.hideUploadProgress();
+            this.hideLoadingAnimation();
             this.showError(`Greška pri analizi sirovih podataka: ${error.message}`);
         }
     }
@@ -1176,7 +1364,7 @@ class EKGAnalyzer {
                 return;
             }
             
-            this.showUploadProgress();
+            this.showLoadingAnimation();
             this.updateProgress(10, 'Čita WFDB fajlove...', '📂');
             
             // Kreiraj FormData za upload
@@ -1189,38 +1377,28 @@ class EKGAnalyzer {
                 }
             }
             
-            this.updateProgress(30, 'Upload WFDB fajlova...', '📤');
+            this.updateProgress(30, 'Priprema WFDB pregled...', '📋');
             
-            // Pošalji na WFDB endpoint
-            const response = await fetch('/api/analyze/wfdb', {
-                method: 'POST',
-                body: formData
-            });
+            // Clear any existing image
+            this.currentImage = null;
             
-            this.updateProgress(75, 'Analizira WFDB signal...', '🔬');
+            // Store WFDB files for later analysis
+            this.currentRawSignal = {
+                files: files,
+                type: 'wfdb_import',
+                fs: 250, // Default for WFDB
+                filename: Array.from(files).map(f => f.name).join(', ')
+            };
             
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Greška pri analizi WFDB fajlova');
-            }
+            // Hide progress and show file info
+            this.hideLoadingAnimation();
             
-            const result = await response.json();
-            
-            if (result.error) {
-                throw new Error(result.error);
-            }
-            
-            this.updateProgress(100, 'WFDB analiza završena!', '✅');
-            
-            // Hide progress and show results
-            setTimeout(() => {
-                this.hideUploadProgress();
-                this.displayWFDBResults(result);
-            }, 500);
+            // Show WFDB files preview
+            this.showWFDBFileInfo(files);
             
         } catch (error) {
             console.error('WFDB analysis error:', error);
-            this.hideUploadProgress();
+            this.hideLoadingAnimation();
             this.showError(`Greška pri analizi WFDB fajlova: ${error.message}`);
         }
     }
@@ -1339,16 +1517,7 @@ class EKGAnalyzer {
             }
 
             // Check if button already exists
-            if (!document.getElementById('generateEkgImageBtn')) {
-                const generateBtn = document.createElement('button');
-                generateBtn.id = 'generateEkgImageBtn';
-                generateBtn.className = 'btn btn-primary';
-                generateBtn.innerHTML = '<i class="fas fa-image"></i> Generiši EKG Sliku';
-                generateBtn.style.margin = '5px';
-                
-                actionButtonsContainer.appendChild(generateBtn);
-                console.log('✅ Generate EKG image button added');
-            }
+            // Generate EKG Image button removed - no function available
         }
     }
 
@@ -1360,7 +1529,7 @@ class EKGAnalyzer {
         }
 
         try {
-            this.showUploadProgress();
+            this.showLoadingAnimation();
             this.updateProgress(10, 'Priprema podatke za sliku...', '🖼️');
 
             const signal_info = this.analysisData.signal_info;
@@ -1425,13 +1594,13 @@ class EKGAnalyzer {
 
             // Hide progress and show generated image
             setTimeout(() => {
-                this.hideUploadProgress();
+                this.hideLoadingAnimation();
                 this.displayGeneratedImage(result);
             }, 500);
 
         } catch (error) {
             console.error('Image generation error:', error);
-            this.hideUploadProgress();
+            this.hideLoadingAnimation();
             this.showError(`Greška pri generisanju EKG slike: ${error.message}`);
         }
     }
@@ -1547,7 +1716,7 @@ class EKGAnalyzer {
         }
 
         try {
-            this.showUploadProgress();
+            this.showLoadingAnimation();
             this.updateProgress(10, 'Analizira generisanu sliku...', '🔍');
 
             const response = await fetch('/api/analyze/complete', {
@@ -1577,14 +1746,14 @@ class EKGAnalyzer {
             this.updateProgress(100, 'Analiza završena!', '✅');
 
             setTimeout(() => {
-                this.hideUploadProgress();
+                this.hideLoadingAnimation();
                 // Show comparison results
                 this.displayImageAnalysisComparison(result);
             }, 500);
 
         } catch (error) {
             console.error('Generated image analysis error:', error);
-            this.hideUploadProgress();
+            this.hideLoadingAnimation();
             this.showError(`Greška pri analizi generisane slike: ${error.message}`);
         }
     }
@@ -1873,10 +2042,6 @@ class EKGAnalyzer {
                 <button id="newAnalysisBtn" class="btn btn-secondary">
                     <i class="fas fa-plus"></i>
                     Nova Analiza
-                </button>
-                <button id="shareBtn" class="btn btn-secondary" onclick="shareResults()">
-                    <i class="fas fa-share-alt"></i>
-                    Podeli Rezultate
                 </button>
             </div>
         `;
@@ -3672,3 +3837,9 @@ EKGAnalyzer.prototype.addThesisVisualizations = function(visualizations) {
 };
 
 console.log("🎓 Educational system loaded - will add info buttons to visualizations");
+
+// Initialize the EKG Analyzer when the page loads
+document.addEventListener('DOMContentLoaded', function() {
+    window.ekgAnalyzer = new EKGAnalyzer();
+    console.log('✅ EKG Analyzer initialized');
+});

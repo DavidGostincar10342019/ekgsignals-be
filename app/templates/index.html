@@ -24,6 +24,157 @@
     <!-- CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     
+    <!-- Loading Animation & UI Improvements -->
+    <style>
+        /* LOADING ANIMACIJA POBOLJŠANJA */
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .loading-animation {
+            margin-bottom: 30px;
+        }
+
+        .heartbeat-loader {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .heartbeat-pulse {
+            width: 15px;
+            height: 15px;
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            border-radius: 50%;
+            animation: heartbeat 1.5s ease-in-out infinite;
+        }
+
+        .heartbeat-pulse:nth-child(2) {
+            animation-delay: 0.3s;
+        }
+
+        .heartbeat-pulse:nth-child(3) {
+            animation-delay: 0.6s;
+        }
+
+        @keyframes heartbeat {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 0.7;
+            }
+            50% {
+                transform: scale(1.4);
+                opacity: 1;
+            }
+        }
+
+        .loading-progress {
+            width: 100%;
+            max-width: 400px;
+            margin: 20px 0;
+        }
+
+        .loading-progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .loading-progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .loading-percentage {
+            font-size: 0.9rem;
+            color: #6c757d;
+            font-weight: 600;
+        }
+
+        .loading-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 30px;
+            max-width: 300px;
+        }
+
+        .loading-step {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            background: #f8f9fa;
+            transition: all 0.3s ease;
+            opacity: 0.5;
+        }
+
+        .loading-step.active {
+            background: #e8f4fd;
+            opacity: 1;
+            transform: scale(1.02);
+        }
+
+        .loading-step.completed {
+            background: #d4edda;
+            opacity: 0.8;
+        }
+
+        .step-indicator {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #dee2e6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #6c757d;
+            transition: all 0.3s ease;
+        }
+
+        .loading-step.active .step-indicator {
+            background: #667eea;
+            color: white;
+            animation: pulse 2s infinite;
+        }
+
+        .loading-step.completed .step-indicator {
+            background: #28a745;
+            color: white;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(102, 126, 234, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(102, 126, 234, 0);
+            }
+        }
+
+        /* Removed Nova Analiza button styles */
+    </style>
+    
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
@@ -142,45 +293,49 @@
             </section>
 
             <!-- Processing Section -->
-            <section id="processingSection" class="processing-section">
-                <h2><i class="fas fa-cog fa-spin"></i> Analiza u toku...</h2>
-                
-                <!-- EKG Wave Animation -->
-                <div class="ekg-wave">
-                    <div class="wave-line"></div>
+            <section id="processingSection" class="processing-section" style="display: none;">
+                <div class="loading-container">
+                    <div class="loading-animation">
+                        <div class="heartbeat-loader">
+                            <div class="heartbeat-pulse"></div>
+                            <div class="heartbeat-pulse"></div>
+                            <div class="heartbeat-pulse"></div>
+                        </div>
+                    </div>
+                    
+                    <h2 id="loadingTitle"><i class="fas fa-cog fa-spin"></i> Analiza u toku...</h2>
+                    <p id="loadingSubtitle" style="text-align: center; color: #666; margin: 10px 0;">
+                        Molimo sačekajte dok se obrađuju podaci...
+                    </p>
+                    
+                    <!-- Loading Progress Bar -->
+                    <div class="loading-progress">
+                        <div class="loading-progress-bar">
+                            <div id="loadingProgressFill" class="loading-progress-fill"></div>
+                        </div>
+                        <div class="loading-percentage" id="loadingPercentage">0%</div>
+                    </div>
+                    
+                    <!-- Loading Steps -->
+                    <div class="loading-steps">
+                        <div id="loadingStep1" class="loading-step active">
+                            <div class="step-indicator">1</div>
+                            <span>Učitavanje podataka...</span>
+                        </div>
+                        <div id="loadingStep2" class="loading-step">
+                            <div class="step-indicator">2</div>
+                            <span>Obrada signala...</span>
+                        </div>
+                        <div id="loadingStep3" class="loading-step">
+                            <div class="step-indicator">3</div>
+                            <span>Analiza parametara...</span>
+                        </div>
+                        <div id="loadingStep4" class="loading-step">
+                            <div class="step-indicator">4</div>
+                            <span>Generisanje rezultata...</span>
+                        </div>
+                    </div>
                 </div>
-
-                <!-- Processing Steps -->
-                <div class="processing-steps">
-                    <div id="step1" class="step">
-                        <div class="step-icon">1</div>
-                        <span>Učitavanje slike...</span>
-                    </div>
-                    <div id="step2" class="step">
-                        <div class="step-icon">2</div>
-                        <span>Obrada slike i detekcija kontura...</span>
-                    </div>
-                    <div id="step3" class="step">
-                        <div class="step-icon">3</div>
-                        <span>Ekstrakcija digitalnog signala...</span>
-                    </div>
-                    <div id="step4" class="step">
-                        <div class="step-icon">4</div>
-                        <span>FFT frekvencijska analiza...</span>
-                    </div>
-                    <div id="step5" class="step">
-                        <div class="step-icon">5</div>
-                        <span>Detekcija R-pikova...</span>
-                    </div>
-                    <div id="step6" class="step">
-                        <div class="step-icon">6</div>
-                        <span>Analiza aritmija i generisanje izveštaja...</span>
-                    </div>
-                </div>
-
-                <p style="text-align: center; color: #666; margin-top: 20px;">
-                    <i class="fas fa-clock"></i> Molimo sačekajte, analiza može potrajati do 30 sekundi...
-                </p>
             </section>
 
             <!-- Results Section -->
@@ -293,25 +448,8 @@
                     </div>
                 </div>
 
-                <!-- Action Buttons -->
-                <div class="action-buttons">
-                    <button id="generateEkgImageBtn" class="btn btn-primary" style="display: none;">
-                        <i class="fas fa-image"></i>
-                        Generiši EKG Sliku
-                    </button>
-                    <button id="newAnalysisBtn" class="btn btn-secondary">
-                        <i class="fas fa-plus"></i>
-                        Nova Analiza
-                    </button>
-                    <button id="debugVizBtn" class="btn btn-warning" onclick="window.ekgAnalyzer && window.ekgAnalyzer.debugVisualizations()" style="display:none;">
-                        <i class="fas fa-bug"></i> DEBUG: Test Vizuelizacije
-                    </button>
-                    <button id="shareBtn" class="btn btn-secondary" onclick="shareResults()">
-                        <i class="fas fa-share-alt"></i>
-                        Podeli Rezultate
-                    </button>
-                </div>
             </section>
+            
 
             <!-- Generated EKG Image Section -->
             <section id="generatedImageSection" class="generated-image-section" style="display: none;">
@@ -368,15 +506,6 @@
             </div>
             -->
             
-            <!-- ADVANCED ANALYSIS AUTO-ACTIVATED v3.2 -->
-            <div class="disclaimer" style="background: #e8f5e8; border-left: 4px solid #28a745;">
-                <div class="disclaimer-title">📊 NAPREDNA ANALIZA v3.2</div>
-                <div style="background: #d4edda; padding: 10px; border-radius: 6px; margin: 10px 0; border-left: 4px solid #28a745;">
-                    <p style="margin: 0; color: #155724;">
-                        <i class="fas fa-chart-line"></i> <strong>Automatski Aktivirano:</strong> Napredne vizualizacije signala, FFT spektar i signal processing pipeline se automatski prikazuju nakon analize.
-                    </p>
-                </div>
-            </div>
         </main>
     </div>
 
