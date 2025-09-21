@@ -2187,10 +2187,13 @@ class EKGAnalyzer {
     }
     
     addInfoButtonListeners() {
-        // Add event listeners to all info buttons
-        const infoButtons = document.querySelectorAll('[onclick^="showInfoModal"]');
-        infoButtons.forEach(button => {
-            // Extract the info type from onclick attribute
+        console.log('🔧 Adding info button listeners...');
+        
+        // Method 1: Look for showInfoModal buttons
+        const oldInfoButtons = document.querySelectorAll('[onclick^="showInfoModal"]');
+        console.log(`🔧 Found ${oldInfoButtons.length} old-style info buttons`);
+        
+        oldInfoButtons.forEach(button => {
             const onclickValue = button.getAttribute('onclick');
             const match = onclickValue.match(/showInfoModal\('([^']+)'\)/);
             if (match) {
@@ -2202,6 +2205,42 @@ class EKGAnalyzer {
                 };
             }
         });
+        
+        // Method 2: Look for new-style info buttons (class="info-btn")
+        const newInfoButtons = document.querySelectorAll('.info-btn');
+        console.log(`🔧 Found ${newInfoButtons.length} new-style info buttons`);
+        
+        newInfoButtons.forEach((button, index) => {
+            // If button already has onclick, skip it
+            if (button.onclick) {
+                console.log(`🔧 Button ${index} already has onclick handler`);
+                return;
+            }
+            
+            // Find the title from nearby h3 or h4
+            const title = this.findButtonTitle(button);
+            const key = String(index + 1);
+            
+            console.log(`🔧 Adding onclick to button ${index}: ${title}`);
+            
+            button.onclick = () => {
+                if (typeof window.showEducationalInfo === 'function') {
+                    window.showEducationalInfo(key, title, "");
+                } else if (typeof window.showInfoModal === 'function') {
+                    window.showInfoModal('visualization');
+                }
+            };
+        });
+    }
+    
+    findButtonTitle(button) {
+        // Look for nearby h3 or h4 element
+        const header = button.closest('.result-header')?.querySelector('h3') || 
+                      button.closest('.result-card')?.querySelector('h3') ||
+                      button.parentElement?.querySelector('h3') ||
+                      button.parentElement?.querySelector('h4');
+        
+        return header ? header.textContent.trim() : 'Vizualizacija';
     }
 
     // Render funkcije za napredni prikaz
