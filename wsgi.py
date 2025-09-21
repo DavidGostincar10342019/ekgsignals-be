@@ -7,7 +7,7 @@ import sys
 import os
 
 # Dodaj putanju do aplikacije
-path = '/home/yourusername/ekg-analiza'  # Zameniti sa stvarnom putanjom
+path = '/home/gostincar/ekgsignals'  # Zameniti sa stvarnom putanjom
 if path not in sys.path:
     sys.path.append(path)
 
