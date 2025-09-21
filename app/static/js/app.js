@@ -189,7 +189,7 @@ class EKGAnalyzer {
                 requestMessage = 'Šalje sliku na server...';
             } else if (this.currentRawSignal) {
                 if (this.currentRawSignal.type === 'wfdb_import') {
-                    // WFDB files analysis
+                    // WFDB files analysis - returns complete analysis directly
                     const formData = new FormData();
                     for (let file of this.currentRawSignal.files) {
                         if (file.name.endsWith('.dat') || file.name.endsWith('.hea') || 
@@ -198,8 +198,10 @@ class EKGAnalyzer {
                         }
                     }
                     
-                    // Send to WFDB endpoint first, then to complete analysis
-                    const wfdbResponse = await fetch('/analyze/wfdb', {
+                    this.updateLoadingStep(2, 'Analizira WFDB fajlove...');
+                    
+                    // WFDB endpoint already returns complete analysis
+                    const wfdbResponse = await fetch('/api/analyze/wfdb', {
                         method: 'POST',
                         body: formData
                     });
@@ -214,13 +216,23 @@ class EKGAnalyzer {
                         throw new Error(wfdbResult.error);
                     }
                     
-                    // Use the signal from WFDB result for complete analysis
-                    requestBody = JSON.stringify({
-                        signal: wfdbResult.signal || wfdbResult.raw_signal,
-                        fs: wfdbResult.fs || 250,
-                        signal_type: 'wfdb_import'
-                    });
-                    requestMessage = 'Analizira WFDB signal...';
+                    console.log('WFDB analysis complete, keys:', Object.keys(wfdbResult));
+                    
+                    // WFDB returns complete analysis, show results directly
+                    this.updateLoadingStep(3, 'Obrađuje podatke...');
+                    this.updateLoadingStep(4, 'Finalizuje rezultate...');
+                    
+                    // Store results for PDF generation
+                    window.currentAnalysisResults = wfdbResult;
+                    this.analysisData = wfdbResult;
+                    
+                    // Hide loading and show results
+                    setTimeout(() => {
+                        this.hideLoadingAnimation();
+                        this.displayResults(wfdbResult);
+                    }, 1000);
+                    
+                    return; // Exit early for WFDB case
                 } else {
                     // Raw signal analysis
                     requestBody = JSON.stringify({
@@ -236,7 +248,7 @@ class EKGAnalyzer {
             this.updateLoadingStep(2, requestMessage);
             
             // Send to complete analysis API
-            const response = await fetch('/analyze/complete', {
+            const response = await fetch('/api/analyze/complete', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -498,6 +510,8 @@ class EKGAnalyzer {
         console.log('🚀 v3.2: Auto-triggering additional analysis for raw signal...');
         setTimeout(() => {
             this.showAdditionalAnalysis();
+            // Add Nova Analiza button at the end
+            this.addNovaAnalizaButton();
         }, 1000);
 
         // Populate structured results
@@ -2039,10 +2053,7 @@ class EKGAnalyzer {
 
             <!-- Action Buttons Container -->
             <div class="action-buttons" style="margin-top: 20px;">
-                <button id="newAnalysisBtn" class="btn btn-secondary">
-                    <i class="fas fa-plus"></i>
-                    Nova Analiza
-                </button>
+                <!-- Nova Analiza button moved to end of page -->
             </div>
         `;
 
@@ -2130,16 +2141,67 @@ class EKGAnalyzer {
             
             <!-- Action Buttons -->
             <div class="action-buttons" style="margin-top: 20px;">
-                <button id="newAnalysisBtn" class="btn btn-secondary">
-                    <i class="fas fa-plus"></i> Nova Analiza
-                </button>
                 <button onclick="window.print()" class="btn btn-secondary">
                     <i class="fas fa-print"></i> Štampaj Izveštaj
                 </button>
+                <!-- Nova Analiza button moved to end of page -->
             </div>
         `;
 
         resultsSection.innerHTML = advancedHTML;
+        
+        // Add event listener for new analysis button
+        const newAnalysisBtn = document.getElementById('newAnalysisBtn');
+        if (newAnalysisBtn) {
+            newAnalysisBtn.addEventListener('click', () => location.reload());
+        }
+    }
+    
+    addNovaAnalizaButton() {
+        // Remove existing Nova Analiza button if present
+        const existingBtn = document.getElementById('novaAnalizaFinalBtn');
+        if (existingBtn) {
+            existingBtn.remove();
+        }
+        
+        // Create new Nova Analiza button at the very end
+        const buttonHTML = `
+            <div id="novaAnalizaFinalBtn" style="text-align: center; padding: 30px 20px; margin-top: 30px; border-top: 2px solid #e9ecef;">
+                <button onclick="location.reload()" class="btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 15px 40px; border-radius: 25px; font-size: 1.1rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 6px 20px rgba(102, 126, 234, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(102, 126, 234, 0.3)'">
+                    <i class="fas fa-plus"></i>
+                    Nova Analiza
+                </button>
+            </div>
+        `;
+        
+        // Add at the very end of the main container
+        const container = document.querySelector('.container');
+        if (container) {
+            container.insertAdjacentHTML('beforeend', buttonHTML);
+        }
+        
+        // Add event listeners for info buttons after content is added
+        setTimeout(() => {
+            this.addInfoButtonListeners();
+        }, 100);
+    }
+    
+    addInfoButtonListeners() {
+        // Add event listeners to all info buttons
+        const infoButtons = document.querySelectorAll('[onclick^="showInfoModal"]');
+        infoButtons.forEach(button => {
+            // Extract the info type from onclick attribute
+            const onclickValue = button.getAttribute('onclick');
+            const match = onclickValue.match(/showInfoModal\('([^']+)'\)/);
+            if (match) {
+                const infoType = match[1];
+                button.onclick = () => {
+                    if (typeof window.showInfoModal === 'function') {
+                        window.showInfoModal(infoType);
+                    }
+                };
+            }
+        });
     }
 
     // Render funkcije za napredni prikaz
