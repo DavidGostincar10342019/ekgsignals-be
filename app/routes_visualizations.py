@@ -7,7 +7,8 @@ from .analysis.simple_thesis_viz import (
     create_simple_ekg_plot, 
     create_simple_fft_plot, 
     create_synthetic_mitbih_comparison,
-    create_simple_processing_plot
+    create_simple_processing_plot,
+    create_pole_zero_analysis_plot
 )
 
 viz_bp = Blueprint('visualizations', __name__)
@@ -132,6 +133,36 @@ def generate_processing_pipeline():
         print(f"ERROR v3.1 in visualization 4: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@viz_bp.post("/thesis/visualization/5")
+def generate_pole_zero_analysis():
+    """Generiši Sliku 5: Pole-Zero Analysis & Filter Stability"""
+    try:
+        payload = request.get_json(force=True)
+        signal = np.array(payload.get("signal", []), dtype=float)
+        fs = payload.get("fs", 250)
+        analysis_results = payload.get("analysis_results", {})
+        
+        if len(signal) == 0:
+            return jsonify({"error": "Prazan signal"}), 400
+            
+        print("DEBUG v3.1: Generating visualization 5 - Pole-Zero analysis")
+        image_base64 = create_pole_zero_analysis_plot(signal, fs, analysis_results)
+        
+        if image_base64:
+            return jsonify({
+                "success": True,
+                "title": "5. Pole-Zero Analysis & Filter Stability Assessment",
+                "description": "Detaljana analiza polova i nula različitih filtera u Z-ravni sa procenom stabilnosti sistema. Prikazani su bandpass, highpass i lowpass filteri sa označenim stability margins.",
+                "image_base64": image_base64,
+                "caption": "Slika 5.5: Pole-zero dijagram filtera sa analizom stabilnosti u Z-domenu"
+            })
+        else:
+            return jsonify({"error": "Failed to generate pole-zero analysis"}), 500
+            
+    except Exception as e:
+        print(f"ERROR v3.1 in visualization 5: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 @viz_bp.post("/thesis/visualizations/all")
 def generate_all_visualizations_async():
     """Inicijalizuj sve vizuelizacije i vrati placeholder-e"""
@@ -168,6 +199,13 @@ def generate_all_visualizations_async():
                     "caption": "Slika 5.4: Pipeline obrade biomedicinskog signala korišćenjem Z-transformacije",
                     "status": "loading",
                     "endpoint": "/api/visualizations/thesis/visualization/4"
+                },
+                "5": {
+                    "title": "5. Pole-Zero Analysis & Filter Stability Assessment",
+                    "description": "Detaljana analiza polova i nula različitih filtera u Z-ravni sa procenom stabilnosti sistema. Prikazani su bandpass, highpass i lowpass filteri sa označenim stability margins.",
+                    "caption": "Slika 5.5: Pole-zero dijagram filtera sa analizom stabilnosti u Z-domenu",
+                    "status": "loading",
+                    "endpoint": "/api/visualizations/thesis/visualization/5"
                 }
             }
         })

@@ -2630,7 +2630,7 @@ class EKGAnalyzer {
             }
             
             // Iterate through numbered visualizations
-            for (let i = 1; i <= 4; i++) {
+            for (let i = 1; i <= 5; i++) {
                 if (vizData[i.toString()]) {
                     console.log(`📊 v3.1 Adding visualization ${i}:`, vizData[i.toString()].title);
                     const viz = vizData[i.toString()];
@@ -2769,7 +2769,7 @@ class EKGAnalyzer {
         this.showVisualizationPlaceholders();
         
         // Generiši svaku vizuelizaciju asinhrono
-        const visualizations = ['1', '2', '3', '4'];
+        const visualizations = ['1', '2', '3', '4', '5'];
         const promises = visualizations.map(id => this.generateSingleVisualization(id, analysisData));
         
         // Čekaj sve vizuelizacije

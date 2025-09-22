@@ -10,7 +10,7 @@ import base64
 
 def create_simple_thesis_visualizations(ekg_signal, fs, analysis_results, annotations=None):
     """
-    Kreira 4 vizuelizacije za master rad - KOMPLETNA VERZIJA
+    Kreira 5 vizuelizacije za master rad - KOMPLETNA VERZIJA
     """
     import time
     timestamp = time.strftime("%H:%M:%S")
@@ -112,7 +112,16 @@ def create_simple_thesis_visualizations(ekg_signal, fs, analysis_results, annota
             "caption": "Slika 5.4: Pipeline obrade biomedicinskog signala korišćenjem Z-transformacije"
         }
         
-        print("DEBUG v3.0: ISPRAVKA ZAVRŠENA - Sve 4 slike koriste odgovarajuće funkcije")
+        # 5. Pole-Zero Analysis
+        print("DEBUG: Generiše se slika 5 - Pole-Zero Analysis")
+        results["visualizations"]["5"] = {
+            "title": "5. Pole-Zero Analysis & Filter Stability Assessment",
+            "description": "Detaljana analiza polova i nula različitih filtera u Z-ravni sa procenom stabilnosti sistema. Prikazani su bandpass, highpass i lowpass filteri sa označenim stability margins.",
+            "image_base64": create_pole_zero_analysis_plot(ekg_signal, fs, analysis_results),
+            "caption": "Slika 5.5: Pole-zero dijagram filtera sa analizom stabilnosti u Z-domenu"
+        }
+        
+        print("DEBUG v3.0: ISPRAVKA ZAVRŠENA - Sve 5 slika koriste odgovarajuće funkcije")
         
         print(f"DEBUG v3.1: Successfully created {len(results['visualizations'])} visualizations")
         for key, viz in results["visualizations"].items():
@@ -532,6 +541,169 @@ def create_synthetic_mitbih_comparison(ekg_signal, fs, analysis_results):
         
     except Exception as e:
         print(f"ERROR in synthetic MIT-BIH comparison: {str(e)}")
+        return None
+
+def create_pole_zero_analysis_plot(ekg_signal, fs=250, analysis_results=None):
+    """
+    Kreira dedikovan pole-zero dijagram sa analizom stabilnosti različitih filtera
+    """
+    try:
+        # Import scipy.signal za filter dizajn
+        from scipy import signal as scipy_signal
+        
+        plt.ioff()  # Turn off interactive mode
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        fig.suptitle('Pole-Zero Analysis & Filter Stability Assessment\n' +
+                    'Analiza polova i nula filtera u Z-domenu sa procenom stabilnosti', 
+                    fontsize=16, fontweight='bold')
+        
+        # 1. BANDPASS FILTER (0.5-40 Hz)
+        ax1 = axes[0, 0]
+        nyquist = fs / 2
+        low = 0.5 / nyquist
+        high = 40 / nyquist
+        b_bp, a_bp = scipy_signal.butter(4, [low, high], btype='band')
+        
+        # Polovi i nule
+        zeros_bp = np.roots(b_bp) if len(b_bp) > 1 else []
+        poles_bp = np.roots(a_bp) if len(a_bp) > 1 else []
+        
+        # Unit circle
+        theta = np.linspace(0, 2*np.pi, 100)
+        unit_circle_x = np.cos(theta)
+        unit_circle_y = np.sin(theta)
+        ax1.plot(unit_circle_x, unit_circle_y, 'k--', alpha=0.7, linewidth=2, label='Unit Circle')
+        
+        # Stability circles (0.8 and 1.2 radius)
+        stability_inner = 0.8 * np.exp(1j * theta)
+        stability_outer = 1.2 * np.exp(1j * theta)
+        ax1.plot(stability_inner.real, stability_inner.imag, 'g:', alpha=0.5, label='Stability Margin')
+        ax1.plot(stability_outer.real, stability_outer.imag, 'r:', alpha=0.5, label='Instability Zone')
+        
+        # Plot poles and zeros
+        if len(poles_bp) > 0:
+            poles_bp_array = np.array(poles_bp)
+            ax1.scatter(poles_bp_array.real, poles_bp_array.imag, marker='x', s=150, 
+                       c='red', linewidth=3, label=f'Polovi ({len(poles_bp)})')
+        
+        if len(zeros_bp) > 0:
+            zeros_bp_array = np.array(zeros_bp)
+            ax1.scatter(zeros_bp_array.real, zeros_bp_array.imag, marker='o', s=120, 
+                       c='blue', facecolor='none', linewidth=2, label=f'Nule ({len(zeros_bp)})')
+        
+        ax1.set_xlim(-1.5, 1.5)
+        ax1.set_ylim(-1.5, 1.5)
+        ax1.set_xlabel('Realni deo')
+        ax1.set_ylabel('Imaginarni deo')
+        ax1.set_title('Bandpass Filter (0.5-40 Hz)\nStabilnost: ' + 
+                     ('STABILAN' if len(poles_bp) == 0 or np.max(np.abs(poles_bp)) < 1.0 else 'NESTABILAN'))
+        ax1.grid(True, alpha=0.3)
+        ax1.legend(fontsize=9)
+        ax1.set_aspect('equal')
+        
+        # 2. HIGHPASS FILTER (0.5 Hz)
+        ax2 = axes[0, 1]
+        b_hp, a_hp = scipy_signal.butter(2, 0.5/nyquist, btype='high')
+        zeros_hp = np.roots(b_hp) if len(b_hp) > 1 else []
+        poles_hp = np.roots(a_hp) if len(a_hp) > 1 else []
+        
+        ax2.plot(unit_circle_x, unit_circle_y, 'k--', alpha=0.7, linewidth=2, label='Unit Circle')
+        ax2.plot(stability_inner.real, stability_inner.imag, 'g:', alpha=0.5)
+        ax2.plot(stability_outer.real, stability_outer.imag, 'r:', alpha=0.5)
+        
+        if len(poles_hp) > 0:
+            poles_hp_array = np.array(poles_hp)
+            ax2.scatter(poles_hp_array.real, poles_hp_array.imag, marker='x', s=150, 
+                       c='red', linewidth=3, label=f'Polovi ({len(poles_hp)})')
+        
+        if len(zeros_hp) > 0:
+            zeros_hp_array = np.array(zeros_hp)
+            ax2.scatter(zeros_hp_array.real, zeros_hp_array.imag, marker='o', s=120, 
+                       c='blue', facecolor='none', linewidth=2, label=f'Nule ({len(zeros_hp)})')
+        
+        ax2.set_xlim(-1.5, 1.5)
+        ax2.set_ylim(-1.5, 1.5)
+        ax2.set_xlabel('Realni deo')
+        ax2.set_ylabel('Imaginarni deo')
+        ax2.set_title('Highpass Filter (0.5 Hz)\nStabilnost: ' + 
+                     ('STABILAN' if len(poles_hp) == 0 or np.max(np.abs(poles_hp)) < 1.0 else 'NESTABILAN'))
+        ax2.grid(True, alpha=0.3)
+        ax2.legend(fontsize=9)
+        ax2.set_aspect('equal')
+        
+        # 3. LOWPASS FILTER (40 Hz)
+        ax3 = axes[1, 0]
+        b_lp, a_lp = scipy_signal.butter(4, 40/nyquist, btype='low')
+        zeros_lp = np.roots(b_lp) if len(b_lp) > 1 else []
+        poles_lp = np.roots(a_lp) if len(a_lp) > 1 else []
+        
+        ax3.plot(unit_circle_x, unit_circle_y, 'k--', alpha=0.7, linewidth=2, label='Unit Circle')
+        ax3.plot(stability_inner.real, stability_inner.imag, 'g:', alpha=0.5)
+        ax3.plot(stability_outer.real, stability_outer.imag, 'r:', alpha=0.5)
+        
+        if len(poles_lp) > 0:
+            poles_lp_array = np.array(poles_lp)
+            ax3.scatter(poles_lp_array.real, poles_lp_array.imag, marker='x', s=150, 
+                       c='red', linewidth=3, label=f'Polovi ({len(poles_lp)})')
+        
+        if len(zeros_lp) > 0:
+            zeros_lp_array = np.array(zeros_lp)
+            ax3.scatter(zeros_lp_array.real, zeros_lp_array.imag, marker='o', s=120, 
+                       c='blue', facecolor='none', linewidth=2, label=f'Nule ({len(zeros_lp)})')
+        
+        ax3.set_xlim(-1.5, 1.5)
+        ax3.set_ylim(-1.5, 1.5)
+        ax3.set_xlabel('Realni deo')
+        ax3.set_ylabel('Imaginarni deo')
+        ax3.set_title('Lowpass Filter (40 Hz)\nStabilnost: ' + 
+                     ('STABILAN' if len(poles_lp) == 0 or np.max(np.abs(poles_lp)) < 1.0 else 'NESTABILAN'))
+        ax3.grid(True, alpha=0.3)
+        ax3.legend(fontsize=9)
+        ax3.set_aspect('equal')
+        
+        # 4. STABILITY ANALYSIS SUMMARY
+        ax4 = axes[1, 1]
+        ax4.axis('off')
+        
+        # Calculate stability metrics
+        all_filters = [
+            ('Bandpass', poles_bp, zeros_bp),
+            ('Highpass', poles_hp, zeros_hp),
+            ('Lowpass', poles_lp, zeros_lp)
+        ]
+        
+        summary_text = "ANALIZA STABILNOSTI FILTERA\n\n"
+        for filter_name, poles, zeros in all_filters:
+            if len(poles) > 0:
+                max_pole_mag = np.max(np.abs(poles))
+                stable = max_pole_mag < 1.0
+                stability_margin = 1.0 - max_pole_mag if stable else max_pole_mag - 1.0
+                
+                summary_text += f"{filter_name} Filter:\n"
+                summary_text += f"  • Broj polova: {len(poles)}\n"
+                summary_text += f"  • Broj nula: {len(zeros)}\n"
+                summary_text += f"  • Max |pole|: {max_pole_mag:.4f}\n"
+                summary_text += f"  • Status: {'STABILAN ✓' if stable else 'NESTABILAN ✗'}\n"
+                summary_text += f"  • Margin: {stability_margin:.4f}\n\n"
+            else:
+                summary_text += f"{filter_name} Filter:\n"
+                summary_text += f"  • Status: STABILAN ✓ (nema polova)\n\n"
+        
+        summary_text += "KRITERIJUMI:\n"
+        summary_text += "• Svi polovi unutar unit circle (|pole| < 1)\n"
+        summary_text += "• Zelena linija: Stability margin (|z| = 0.8)\n"
+        summary_text += "• Crvena linija: Instability zone (|z| = 1.2)\n"
+        summary_text += "• X = Polovi, O = Nule"
+        
+        ax4.text(0.05, 0.95, summary_text, transform=ax4.transAxes, fontsize=11,
+                verticalalignment='top', fontfamily='monospace',
+                bbox=dict(boxstyle="round,pad=0.5", facecolor="lightgray", alpha=0.8))
+        
+        plt.tight_layout()
+        return fig_to_base64(fig)
+        
+    except Exception as e:
+        print(f"ERROR in pole-zero analysis: {str(e)}")
         return None
 
 def fig_to_base64(fig):
