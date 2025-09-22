@@ -545,162 +545,95 @@ def create_synthetic_mitbih_comparison(ekg_signal, fs, analysis_results):
 
 def create_pole_zero_analysis_plot(ekg_signal, fs=250, analysis_results=None):
     """
-    Kreira dedikovan pole-zero dijagram sa analizom stabilnosti različitih filtera
+    Poboljšana verzija pole-zero dijagrama sa boljim layoutom i bez preklapanja
     """
     try:
-        # Import scipy.signal za filter dizajn
         from scipy import signal as scipy_signal
         
         plt.ioff()  # Turn off interactive mode
-        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        
+        # Kreiraj figuru sa optimizovanim dimenzijama
+        fig = plt.figure(figsize=(20, 16))
+        fig.patch.set_facecolor('white')
+        
+        # Kreiranje grid layout-a sa boljim spacing-om
+        gs = fig.add_gridspec(3, 3, 
+                             height_ratios=[0.8, 0.8, 1.2], 
+                             width_ratios=[1, 1, 1.2],
+                             hspace=0.35, wspace=0.3,
+                             top=0.92, bottom=0.08, left=0.06, right=0.96)
+        
+        # Glavni naslov sa boljim stilom
         fig.suptitle('Pole-Zero Analysis & Filter Stability Assessment\n' +
                     'Analiza polova i nula filtera u Z-domenu sa procenom stabilnosti', 
-                    fontsize=16, fontweight='bold')
+                    fontsize=20, fontweight='bold', y=0.96)
         
-        # 1. BANDPASS FILTER (0.5-40 Hz)
-        ax1 = axes[0, 0]
         nyquist = fs / 2
+        
+        # 1. BANDPASS FILTER (0.5-40 Hz) - Gornji levo
+        ax1 = fig.add_subplot(gs[0, 0])
         low = 0.5 / nyquist
         high = 40 / nyquist
         b_bp, a_bp = scipy_signal.butter(4, [low, high], btype='band')
-        
-        # Polovi i nule
         zeros_bp = np.roots(b_bp) if len(b_bp) > 1 else []
         poles_bp = np.roots(a_bp) if len(a_bp) > 1 else []
         
-        # Unit circle
-        theta = np.linspace(0, 2*np.pi, 100)
-        unit_circle_x = np.cos(theta)
-        unit_circle_y = np.sin(theta)
-        ax1.plot(unit_circle_x, unit_circle_y, 'k--', alpha=0.7, linewidth=2, label='Unit Circle')
+        create_single_pole_zero_plot(ax1, poles_bp, zeros_bp, 
+                                   'Bandpass Filter (0.5-40 Hz)',
+                                   '#9b59b6')
         
-        # Stability circles (0.8 and 1.2 radius)
-        stability_inner = 0.8 * np.exp(1j * theta)
-        stability_outer = 1.2 * np.exp(1j * theta)
-        ax1.plot(stability_inner.real, stability_inner.imag, 'g:', alpha=0.5, label='Stability Margin')
-        ax1.plot(stability_outer.real, stability_outer.imag, 'r:', alpha=0.5, label='Instability Zone')
-        
-        # Plot poles and zeros
-        if len(poles_bp) > 0:
-            poles_bp_array = np.array(poles_bp)
-            ax1.scatter(poles_bp_array.real, poles_bp_array.imag, marker='x', s=150, 
-                       c='red', linewidth=3, label=f'Polovi ({len(poles_bp)})')
-        
-        if len(zeros_bp) > 0:
-            zeros_bp_array = np.array(zeros_bp)
-            ax1.scatter(zeros_bp_array.real, zeros_bp_array.imag, marker='o', s=120, 
-                       c='blue', facecolor='none', linewidth=2, label=f'Nule ({len(zeros_bp)})')
-        
-        ax1.set_xlim(-1.5, 1.5)
-        ax1.set_ylim(-1.5, 1.5)
-        ax1.set_xlabel('Realni deo')
-        ax1.set_ylabel('Imaginarni deo')
-        ax1.set_title('Bandpass Filter (0.5-40 Hz)\nStabilnost: ' + 
-                     ('STABILAN' if len(poles_bp) == 0 or np.max(np.abs(poles_bp)) < 1.0 else 'NESTABILAN'))
-        ax1.grid(True, alpha=0.3)
-        ax1.legend(fontsize=9)
-        ax1.set_aspect('equal')
-        
-        # 2. HIGHPASS FILTER (0.5 Hz)
-        ax2 = axes[0, 1]
+        # 2. HIGHPASS FILTER (0.5 Hz) - Gornji desno
+        ax2 = fig.add_subplot(gs[0, 1])
         b_hp, a_hp = scipy_signal.butter(2, 0.5/nyquist, btype='high')
         zeros_hp = np.roots(b_hp) if len(b_hp) > 1 else []
         poles_hp = np.roots(a_hp) if len(a_hp) > 1 else []
         
-        ax2.plot(unit_circle_x, unit_circle_y, 'k--', alpha=0.7, linewidth=2, label='Unit Circle')
-        ax2.plot(stability_inner.real, stability_inner.imag, 'g:', alpha=0.5)
-        ax2.plot(stability_outer.real, stability_outer.imag, 'r:', alpha=0.5)
+        create_single_pole_zero_plot(ax2, poles_hp, zeros_hp,
+                                   'Highpass Filter (0.5 Hz)',
+                                   '#e67e22')
         
-        if len(poles_hp) > 0:
-            poles_hp_array = np.array(poles_hp)
-            ax2.scatter(poles_hp_array.real, poles_hp_array.imag, marker='x', s=150, 
-                       c='red', linewidth=3, label=f'Polovi ({len(poles_hp)})')
-        
-        if len(zeros_hp) > 0:
-            zeros_hp_array = np.array(zeros_hp)
-            ax2.scatter(zeros_hp_array.real, zeros_hp_array.imag, marker='o', s=120, 
-                       c='blue', facecolor='none', linewidth=2, label=f'Nule ({len(zeros_hp)})')
-        
-        ax2.set_xlim(-1.5, 1.5)
-        ax2.set_ylim(-1.5, 1.5)
-        ax2.set_xlabel('Realni deo')
-        ax2.set_ylabel('Imaginarni deo')
-        ax2.set_title('Highpass Filter (0.5 Hz)\nStabilnost: ' + 
-                     ('STABILAN' if len(poles_hp) == 0 or np.max(np.abs(poles_hp)) < 1.0 else 'NESTABILAN'))
-        ax2.grid(True, alpha=0.3)
-        ax2.legend(fontsize=9)
-        ax2.set_aspect('equal')
-        
-        # 3. LOWPASS FILTER (40 Hz)
-        ax3 = axes[1, 0]
+        # 3. LOWPASS FILTER (40 Hz) - Srednji levo
+        ax3 = fig.add_subplot(gs[1, 0])
         b_lp, a_lp = scipy_signal.butter(4, 40/nyquist, btype='low')
         zeros_lp = np.roots(b_lp) if len(b_lp) > 1 else []
         poles_lp = np.roots(a_lp) if len(a_lp) > 1 else []
         
-        ax3.plot(unit_circle_x, unit_circle_y, 'k--', alpha=0.7, linewidth=2, label='Unit Circle')
-        ax3.plot(stability_inner.real, stability_inner.imag, 'g:', alpha=0.5)
-        ax3.plot(stability_outer.real, stability_outer.imag, 'r:', alpha=0.5)
+        create_single_pole_zero_plot(ax3, poles_lp, zeros_lp,
+                                   'Lowpass Filter (40 Hz)',
+                                   '#2ecc71')
         
-        if len(poles_lp) > 0:
-            poles_lp_array = np.array(poles_lp)
-            ax3.scatter(poles_lp_array.real, poles_lp_array.imag, marker='x', s=150, 
-                       c='red', linewidth=3, label=f'Polovi ({len(poles_lp)})')
+        # 4. COMBINED VIEW - Srednji desno
+        ax4 = fig.add_subplot(gs[1, 1])
+        create_combined_pole_zero_plot(ax4, 
+                                     [(poles_bp, zeros_bp, '#9b59b6', 'BP'),
+                                      (poles_hp, zeros_hp, '#e67e22', 'HP'),
+                                      (poles_lp, zeros_lp, '#2ecc71', 'LP')])
         
-        if len(zeros_lp) > 0:
-            zeros_lp_array = np.array(zeros_lp)
-            ax3.scatter(zeros_lp_array.real, zeros_lp_array.imag, marker='o', s=120, 
-                       c='blue', facecolor='none', linewidth=2, label=f'Nule ({len(zeros_lp)})')
+        # 5. STABILITY ANALYSIS - Desni panel (spanning 2 rows)
+        ax5 = fig.add_subplot(gs[0:2, 2])
+        create_stability_analysis_panel(ax5, 
+                                      [('Bandpass (0.5-40 Hz)', poles_bp, zeros_bp, '#9b59b6'),
+                                       ('Highpass (0.5 Hz)', poles_hp, zeros_hp, '#e67e22'),
+                                       ('Lowpass (40 Hz)', poles_lp, zeros_lp, '#2ecc71')])
         
-        ax3.set_xlim(-1.5, 1.5)
-        ax3.set_ylim(-1.5, 1.5)
-        ax3.set_xlabel('Realni deo')
-        ax3.set_ylabel('Imaginarni deo')
-        ax3.set_title('Lowpass Filter (40 Hz)\nStabilnost: ' + 
-                     ('STABILAN' if len(poles_lp) == 0 or np.max(np.abs(poles_lp)) < 1.0 else 'NESTABILAN'))
-        ax3.grid(True, alpha=0.3)
-        ax3.legend(fontsize=9)
-        ax3.set_aspect('equal')
+        # 6. FREQUENCY RESPONSES - Donji panel (spanning all columns)
+        ax6 = fig.add_subplot(gs[2, :])
+        create_frequency_response_comparison(ax6, 
+                                           [(b_bp, a_bp, '#9b59b6', 'Bandpass'),
+                                            (b_hp, a_hp, '#e67e22', 'Highpass'),
+                                            (b_lp, a_lp, '#2ecc71', 'Lowpass')],
+                                           fs)
         
-        # 4. STABILITY ANALYSIS SUMMARY
-        ax4 = axes[1, 1]
-        ax4.axis('off')
+        # Konvertuj u base64
+        buffer = io.BytesIO()
+        fig.savefig(buffer, format='png', dpi=120, bbox_inches='tight', 
+                   facecolor='white', edgecolor='none')
+        buffer.seek(0)
+        image_base64 = base64.b64encode(buffer.getvalue()).decode()
+        buffer.close()
+        plt.close(fig)
         
-        # Calculate stability metrics
-        all_filters = [
-            ('Bandpass', poles_bp, zeros_bp),
-            ('Highpass', poles_hp, zeros_hp),
-            ('Lowpass', poles_lp, zeros_lp)
-        ]
-        
-        summary_text = "ANALIZA STABILNOSTI FILTERA\n\n"
-        for filter_name, poles, zeros in all_filters:
-            if len(poles) > 0:
-                max_pole_mag = np.max(np.abs(poles))
-                stable = max_pole_mag < 1.0
-                stability_margin = 1.0 - max_pole_mag if stable else max_pole_mag - 1.0
-                
-                summary_text += f"{filter_name} Filter:\n"
-                summary_text += f"  • Broj polova: {len(poles)}\n"
-                summary_text += f"  • Broj nula: {len(zeros)}\n"
-                summary_text += f"  • Max |pole|: {max_pole_mag:.4f}\n"
-                summary_text += f"  • Status: {'STABILAN ✓' if stable else 'NESTABILAN ✗'}\n"
-                summary_text += f"  • Margin: {stability_margin:.4f}\n\n"
-            else:
-                summary_text += f"{filter_name} Filter:\n"
-                summary_text += f"  • Status: STABILAN ✓ (nema polova)\n\n"
-        
-        summary_text += "KRITERIJUMI:\n"
-        summary_text += "• Svi polovi unutar unit circle (|pole| < 1)\n"
-        summary_text += "• Zelena linija: Stability margin (|z| = 0.8)\n"
-        summary_text += "• Crvena linija: Instability zone (|z| = 1.2)\n"
-        summary_text += "• X = Polovi, O = Nule"
-        
-        ax4.text(0.05, 0.95, summary_text, transform=ax4.transAxes, fontsize=11,
-                verticalalignment='top', fontfamily='monospace',
-                bbox=dict(boxstyle="round,pad=0.5", facecolor="lightgray", alpha=0.8))
-        
-        plt.tight_layout()
-        return fig_to_base64(fig)
+        return image_base64
         
     except Exception as e:
         print(f"ERROR in pole-zero analysis: {str(e)}")
@@ -720,3 +653,230 @@ def fig_to_base64(fig):
         print(f"ERROR in fig_to_base64: {str(e)}")
         plt.close(fig)
         return None
+
+def create_single_pole_zero_plot(ax, poles, zeros, title, color):
+    """Kreira jedan pole-zero plot sa optimizovanim stilom"""
+    
+    # Unit circle sa lepšim stilom
+    theta = np.linspace(0, 2*np.pi, 100)
+    unit_circle_x = np.cos(theta)
+    unit_circle_y = np.sin(theta)
+    
+    # Background circles za stability zones
+    stability_inner = 0.8 * np.exp(1j * theta)
+    ax.fill(stability_inner.real, stability_inner.imag, alpha=0.1, color='green', label='Safe Zone')
+    ax.fill(unit_circle_x, unit_circle_y, alpha=0.05, color='yellow')
+    
+    # Unit circle
+    ax.plot(unit_circle_x, unit_circle_y, 'k-', linewidth=2.5, alpha=0.8, label='Unit Circle')
+    
+    # Stability margins
+    ax.plot(stability_inner.real, stability_inner.imag, '--', color='#27ae60', 
+           linewidth=1.5, alpha=0.7, label='Stability Margin')
+    
+    # Plot poles
+    if len(poles) > 0:
+        poles_array = np.array(poles)
+        ax.scatter(poles_array.real, poles_array.imag, marker='X', s=150, 
+                  c=color, edgecolors='darkred', linewidth=2, 
+                  label=f'Poles ({len(poles)})', zorder=5, alpha=0.9)
+        
+        # Dodaj oznake za svaki pol
+        for i, pole in enumerate(poles_array):
+            if len(poles_array) <= 6:  # Samo ako nije previše polova
+                ax.annotate(f'P{i+1}', (pole.real, pole.imag), 
+                           xytext=(5, 5), textcoords='offset points',
+                           fontsize=8, fontweight='bold', color=color)
+    
+    # Plot zeros
+    if len(zeros) > 0:
+        zeros_array = np.array(zeros)
+        ax.scatter(zeros_array.real, zeros_array.imag, marker='o', s=120, 
+                  c='none', edgecolors='#2980b9', linewidth=2.5, 
+                  label=f'Zeros ({len(zeros)})', zorder=5)
+        
+        # Dodaj oznake za svaku nulu
+        for i, zero in enumerate(zeros_array):
+            if len(zeros_array) <= 6:
+                ax.annotate(f'Z{i+1}', (zero.real, zero.imag), 
+                           xytext=(5, -10), textcoords='offset points',
+                           fontsize=8, fontweight='bold', color='#2980b9')
+    
+    # Styling
+    ax.set_xlim(-1.4, 1.4)
+    ax.set_ylim(-1.4, 1.4)
+    ax.set_xlabel('Real Part', fontsize=11, fontweight='bold')
+    ax.set_ylabel('Imaginary Part', fontsize=11, fontweight='bold')
+    
+    # Title sa stability status
+    stable = len(poles) == 0 or np.max(np.abs(poles)) < 1.0
+    status_icon = "✅" if stable else "❌"
+    ax.set_title(f'{title}\n{status_icon} {"STABLE" if stable else "UNSTABLE"}',
+                fontsize=12, fontweight='bold', pad=15, color=color)
+    
+    ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+    ax.axhline(y=0, color='k', linewidth=0.6, alpha=0.4)
+    ax.axvline(x=0, color='k', linewidth=0.6, alpha=0.4)
+    ax.set_aspect('equal')
+    ax.set_facecolor('#fafafa')
+    
+    # Legend sa boljim pozicioniranjem
+    legend = ax.legend(fontsize=9, framealpha=0.9, shadow=True, loc='upper right')
+    legend.get_frame().set_facecolor('white')
+
+def create_combined_pole_zero_plot(ax, filter_data):
+    """Kreira kombinovani prikaz svih filtera"""
+    
+    # Unit circle
+    theta = np.linspace(0, 2*np.pi, 100)
+    unit_circle_x = np.cos(theta)
+    unit_circle_y = np.sin(theta)
+    
+    ax.plot(unit_circle_x, unit_circle_y, 'k-', linewidth=3, alpha=0.8, label='Unit Circle')
+    
+    # Stability zone
+    stability_inner = 0.8 * np.exp(1j * theta)
+    ax.fill(stability_inner.real, stability_inner.imag, alpha=0.08, color='green')
+    ax.plot(stability_inner.real, stability_inner.imag, '--', color='#27ae60', 
+           linewidth=1.5, alpha=0.6)
+    
+    # Plot all filters
+    for poles, zeros, color, label in filter_data:
+        if len(poles) > 0:
+            poles_array = np.array(poles)
+            ax.scatter(poles_array.real, poles_array.imag, marker='X', s=100, 
+                      c=color, edgecolors='darkred', linewidth=1.5, 
+                      label=f'{label} Poles', alpha=0.8)
+        
+        if len(zeros) > 0:
+            zeros_array = np.array(zeros)
+            ax.scatter(zeros_array.real, zeros_array.imag, marker='o', s=80, 
+                      c='none', edgecolors=color, linewidth=2, 
+                      label=f'{label} Zeros', alpha=0.8)
+    
+    ax.set_xlim(-1.4, 1.4)
+    ax.set_ylim(-1.4, 1.4)
+    ax.set_xlabel('Real Part', fontsize=11, fontweight='bold')
+    ax.set_ylabel('Imaginary Part', fontsize=11, fontweight='bold')
+    ax.set_title('Combined Filter Analysis\nAll Poles & Zeros', 
+                fontsize=12, fontweight='bold', pad=15)
+    
+    ax.grid(True, alpha=0.3)
+    ax.axhline(y=0, color='k', linewidth=0.6, alpha=0.4)
+    ax.axvline(x=0, color='k', linewidth=0.6, alpha=0.4)
+    ax.set_aspect('equal')
+    ax.set_facecolor('#fafafa')
+    
+    # Compact legend
+    ax.legend(fontsize=8, framealpha=0.9, loc='upper left', ncol=2)
+
+def create_stability_analysis_panel(ax, filter_data):
+    """Kreira panel sa stability analizom bez preklapanja"""
+    
+    ax.axis('off')
+    ax.set_facecolor('#f8f9fa')
+    
+    # Title
+    ax.text(0.5, 0.95, "📊 STABILITY ANALYSIS", transform=ax.transAxes, 
+           fontsize=16, fontweight='bold', ha='center', va='top',
+           bbox=dict(boxstyle="round,pad=0.4", facecolor="#34495e", alpha=0.9),
+           color='white')
+    
+    y_pos = 0.85
+    
+    for filter_name, poles, zeros, color in filter_data:
+        # Filter header sa boljim spacing-om
+        ax.text(0.05, y_pos, f"🔧 {filter_name}", transform=ax.transAxes, 
+               fontsize=13, fontweight='bold', color=color)
+        y_pos -= 0.06
+        
+        if len(poles) > 0:
+            max_pole_mag = np.max(np.abs(poles))
+            stable = max_pole_mag < 1.0
+            stability_margin = 1.0 - max_pole_mag if stable else max_pole_mag - 1.0
+            
+            # Status
+            status_icon = "✅" if stable else "❌"
+            status_text = "STABLE" if stable else "UNSTABLE"
+            status_color = "#27ae60" if stable else "#e74c3c"
+            
+            ax.text(0.1, y_pos, f"{status_icon} Status: {status_text}", 
+                   transform=ax.transAxes, fontsize=11, color=status_color, 
+                   fontweight='bold')
+            y_pos -= 0.04
+            
+            # Metrics sa boljim formatiranjem
+            ax.text(0.1, y_pos, f"📍 Poles: {len(poles)}, Zeros: {len(zeros)}", 
+                   transform=ax.transAxes, fontsize=10, color='#2c3e50')
+            y_pos -= 0.035
+            
+            ax.text(0.1, y_pos, f"📏 Max |pole|: {max_pole_mag:.4f}", 
+                   transform=ax.transAxes, fontsize=10, color='#2c3e50')
+            y_pos -= 0.035
+            
+            ax.text(0.1, y_pos, f"🎯 Margin: {abs(stability_margin):.4f}", 
+                   transform=ax.transAxes, fontsize=10, color='#2c3e50')
+            y_pos -= 0.05
+        else:
+            ax.text(0.1, y_pos, f"✅ Status: STABLE (no poles)", 
+                   transform=ax.transAxes, fontsize=11, color="#27ae60", 
+                   fontweight='bold')
+            y_pos -= 0.08
+        
+        # Separator line
+        if y_pos > 0.2:
+            ax.plot([0, 1], [y_pos + 0.02, y_pos + 0.02], color='gray', alpha=0.3, linewidth=1,
+                   transform=ax.transAxes)
+            y_pos -= 0.02
+    
+    # Legend section sa boljim spacing-om
+    legend_y = 0.4
+    ax.text(0.5, legend_y, "📋 STABILITY CRITERIA", transform=ax.transAxes, 
+           fontsize=14, fontweight='bold', ha='center', 
+           bbox=dict(boxstyle="round,pad=0.3", facecolor="#3498db", alpha=0.8),
+           color='white')
+    
+    legend_items = [
+        "🔴 Stability: All poles inside unit circle",
+        "⚫ Unit Circle: Stability boundary (|z| = 1)",  
+        "🟢 Safe Zone: Recommended region (|z| < 0.8)",
+        "❌ Poles: Critical system frequencies",
+        "⭕ Zeros: Blocked frequencies"
+    ]
+    
+    legend_y -= 0.08
+    for item in legend_items:
+        ax.text(0.05, legend_y, item, transform=ax.transAxes, 
+               fontsize=10, color='#2c3e50')
+        legend_y -= 0.045
+
+def create_frequency_response_comparison(ax, filter_data, fs):
+    """Kreira poređenje frequency response-a"""
+    from scipy import signal as scipy_signal
+    
+    for b, a, color, label in filter_data:
+        w, h = scipy_signal.freqz(b, a, worN=1000, fs=fs)
+        magnitude_db = 20 * np.log10(np.abs(h))
+        
+        ax.plot(w, magnitude_db, color=color, linewidth=2.5, 
+               label=f'{label} Filter', alpha=0.8)
+    
+    ax.set_xlabel('Frequency (Hz)', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Magnitude (dB)', fontsize=12, fontweight='bold')
+    ax.set_title('Frequency Response Comparison of All Filters', 
+                fontsize=14, fontweight='bold', pad=15)
+    
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(0, min(100, fs/2))
+    ax.set_ylim(-80, 5)
+    
+    # Dodaj referentne linije
+    ax.axhline(y=-3, color='red', linestyle='--', alpha=0.6, linewidth=1,
+              label='-3dB Line')
+    ax.axvline(x=0.5, color='gray', linestyle=':', alpha=0.6, linewidth=1,
+              label='0.5 Hz')
+    ax.axvline(x=40, color='gray', linestyle=':', alpha=0.6, linewidth=1,
+              label='40 Hz')
+    
+    ax.legend(fontsize=11, framealpha=0.9, loc='upper right')
+    ax.set_facecolor('#fafafa')

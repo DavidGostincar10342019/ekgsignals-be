@@ -3856,7 +3856,7 @@ window.showEducationalInfo = function(vizKey, vizTitle, vizDescription) {
     
     const info = explanations[vizKey] || {
         title: vizTitle || "Dijagram",
-        content: "<p>Ovaj dijagram je deo master rada o Furijeovoj i Z-transformaciji u biomedicinskim signalima.</p>"
+        content: "<p>Pole-zero dijagram prikazuje pozicije polova i nula različitih digitalnih filtera u Z-ravni. Analiza stabilnosti sistema kroz pozicije polova u odnosu na jedinični krug je ključna za sigurno filtriranje biomedicinskih signala.</p>"
     };
     
     // Kreiraj modal
