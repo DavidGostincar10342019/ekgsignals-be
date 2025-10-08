@@ -41,37 +41,45 @@ def create_ekg_image_from_signal(signal, fs=250, duration_seconds=None, style="c
         return _create_monitor_ekg_image(signal, t, fs)
 
 def _create_clinical_ekg_image(signal, t, fs):
-    """Kreira sliku u stilu medicinskog EKG papira - optimizovano za analizu"""
+    """Kreira realističniju sliku EKG-a koristeći OpenCV."""
     
-    # POBOLJŠANO: Veća figura za bolju čitljivost
-    fig, ax = plt.subplots(figsize=(16, 10), dpi=200)  # Veća rezolucija
+    # Definiši dimenzije i pozadinu
+    height, width = 600, 2400
+    # Boja papira (blago žućkasta)
+    paper_color = (245, 245, 245)
+    image = np.full((height, width, 3), paper_color, dtype=np.uint8)
+
+    # Normalizuj signal za iscrtavanje
+    sig_min, sig_max = np.min(signal), np.max(signal)
+    if sig_max - sig_min > 0:
+        signal_norm = (signal - sig_min) / (sig_max - sig_min)
+    else:
+        signal_norm = np.zeros_like(signal)
+
+    # Skaliraj na prostor slike (ostavljamo margine)
+    x_coords = (t / t[-1] * (width - 100) + 50).astype(int)
+    y_coords = (height - (signal_norm * (height * 0.6) + height * 0.2)).astype(int)
     
-    # POBOLJŠANO: Preprocess signal za bolju vizibilnost
-    signal_processed = _enhance_signal_for_analysis(signal, fs)
-    
-    # Medicinski EKG papir pozadina - tamniji grid za kontrast
-    _add_enhanced_ekg_grid(ax, t[-1])
-    
-    # POBOLJŠANO: Amplifikacija signala za jasniju analizu
-    signal_mv = signal_processed * 2.0  # Pojačaj signal 2x
-    
-    # Crtanje EKG signala sa većom linijom
-    ax.plot(t, signal_mv, 'k-', linewidth=2.5, alpha=0.95)
-    
-    # Medicinski stil osa
-    ax.set_xlim(0, t[-1])
-    ax.set_ylim(-2, 2)
-    ax.set_xlabel('Vreme (s)', fontsize=10)
-    ax.set_ylabel('Amplituda (mV)', fontsize=10)
-    
-    # Uklanjanje margina
-    plt.tight_layout()
-    plt.subplots_adjust(left=0.08, right=0.95, top=0.95, bottom=0.08)
-    
-    # Dodavanje medicinskih anotacija
-    _add_medical_annotations(ax, signal_mv, t, fs)
-    
-    return _fig_to_image_data(fig)
+    # Kreiraj tačke za iscrtavanje linije
+    points = np.column_stack((x_coords, y_coords))
+
+    # Iscrtaj EKG liniju (podebljana)
+    cv2.polylines(image, [points], isClosed=False, color=(10, 10, 10), thickness=2, lineType=cv2.LINE_AA)
+
+    # Dodaj blago zamućenje da simulira sken
+    image = cv2.GaussianBlur(image, (3, 3), 0)
+
+    # Konvertuj OpenCV sliku (BGR) u format koji ostatak sistema očekuje
+    _, buffer = cv2.imencode('.png', image)
+    img_pil = Image.open(io.BytesIO(buffer))
+    img_b64 = base64.b64encode(buffer).decode('utf-8')
+
+    return {
+        'image_base64': f"data:image/png;base64,{img_b64}",
+        'image_pil': img_pil,
+        'image_opencv': image,
+        'metadata': {'width': width, 'height': height, 'format': 'PNG', 'mode': 'RGB'}
+    }
 
 def _create_monitor_ekg_image(signal, t, fs):
     """Kreira sliku u stilu monitora/displeja"""
@@ -228,23 +236,23 @@ def test_signal_to_image_conversion(signal, fs=250):
         # 2. Sačuvaj sliku za debug (opciono)
         # image_data['image_pil'].save('tmp_rovodev_generated_ekg.png')
         
-        # 3. Testiraj kroz postojeću logiku obrade slike
-        from .image_processing import process_ekg_image
+        # 3. Testiraj kroz naš najbolji pipeline
+        from .image_processing_visualization import visualize_complete_image_processing
         
         try:
-            print("DEBUG: Processing EKG image...")
-            # Konvertuj nazad kroz postojeću logiku (preskačemo validaciju za test slike)
-            analysis_result = process_ekg_image(image_data['image_base64'], skip_validation=True)
+            print("DEBUG: Processing EKG image with the best pipeline...")
+            # Konvertuj nazad kroz najbolju logiku
+            analysis_result_dict = visualize_complete_image_processing(image_data['image_base64'], show_intermediate_steps=False)
             print("DEBUG: Image processing completed")
             
-            if 'error' in analysis_result:
+            if not analysis_result_dict.get('success', False):
                 return {
                     'success': False,
-                    'error': analysis_result['error'],
+                    'error': analysis_result_dict.get('error', 'Unknown error'),
                     'image_generated': True
                 }
             
-            extracted_signal = analysis_result['signal']
+            extracted_signal = analysis_result_dict['extracted_signal']
             print(f"DEBUG: Extracted signal, len={len(extracted_signal)}")
             
             # Poredi originalni i ekstraktovani signal

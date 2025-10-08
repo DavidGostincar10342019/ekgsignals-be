@@ -1,0 +1,38 @@
+{
+  "timestamp": "2025-10-08T18:32:11.145841",
+  "total_suites": 5,
+  "passed_suites": 0,
+  "total_duration": 0,
+  "results": {
+    "test_comprehensive_ekg_system.py": {
+      "success": false,
+      "duration": 0,
+      "error": "Test file not found",
+      "return_code": -1
+    },
+    "test_detailed_analysis_components.py": {
+      "success": false,
+      "duration": 0,
+      "error": "Test file not found",
+      "return_code": -1
+    },
+    "test_with_real_images.py": {
+      "success": false,
+      "duration": 0,
+      "error": "Test file not found",
+      "return_code": -1
+    },
+    "test_ekg_analysis.py": {
+      "success": false,
+      "duration": 0,
+      "error": "Test file not found",
+      "return_code": -1
+    },
+    "test_mathematical_validation.py": {
+      "success": false,
+      "duration": 0,
+      "error": "Test file not found",
+      "return_code": -1
+    }
+  }
+}

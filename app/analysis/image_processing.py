@@ -99,7 +99,7 @@ def process_ekg_image(image_data, is_base64=True, skip_validation=False):
 
 def extract_ekg_signal(img):
     """
-    Ekstraktuje EKG signal iz slike koristeći obradu kontura
+    POBOLJŠANO: Ekstraktuje EKG signal iz CELE slike umesto samo iz konture
     
     Args:
         img: OpenCV slika (BGR format)
@@ -120,40 +120,104 @@ def extract_ekg_signal(img):
     kernel = np.ones((2,2), np.uint8)
     cleaned = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
     
-    # Detekcija kontura
-    contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    if not contours:
-        # Ako nema kontura, pokušaj sa osnovnim pristupom
-        return extract_signal_basic(gray)
-    
-    # Pronalaženje najveće konture (pretpostavljamo da je to EKG signal)
-    largest_contour = max(contours, key=cv2.contourArea)
-    
-    # Kreiranje maske za signal
-    mask = np.zeros(gray.shape, np.uint8)
-    cv2.drawContours(mask, [largest_contour], -1, 255, -1)
-    
-    # Ekstrakcija signala po kolonama
+    # NOVO: Skeniraj CELU širinu slike umesto samo konture
     height, width = gray.shape
     signal = []
     
-    for x in range(width):
+    for x in range(width):  # SVE kolone, ne samo bounding rectangle
         # Pronalaženje Y koordinata signala u koloni x
-        column_mask = mask[:, x]
-        signal_points = np.where(column_mask == 255)[0]
+        column = cleaned[:, x]
+        signal_points = np.where(column == 255)[0]
         
         if len(signal_points) > 0:
-            # Uzimanje srednje vrednosti ako ima više tačaka
-            avg_y = np.mean(signal_points)
+            # POBOLJŠANO: Ponderisana srednja vrednost
+            # Grupiši susedne bele piksele za bolje center-of-mass
+            groups = []
+            current_group = [signal_points[0]]
+            
+            for i in range(1, len(signal_points)):
+                if signal_points[i] - signal_points[i-1] <= 3:  # Gap threshold
+                    current_group.append(signal_points[i])
+                else:
+                    groups.append(current_group)
+                    current_group = [signal_points[i]]
+            groups.append(current_group)
+            
+            # Weighted average po veličini grupe
+            if groups:
+                positions = []
+                weights = []
+                for group in groups:
+                    center_y = np.mean(group)
+                    weight = len(group)  # Veća grupa = veći weight
+                    positions.append(center_y)
+                    weights.append(weight)
+                
+                avg_y = np.average(positions, weights=weights)
+            else:
+                avg_y = np.mean(signal_points)
+            
             # Konverzija u amplitudu (invertovano jer je Y osa obrnuta)
             amplitude = (height - avg_y) / height
             signal.append(amplitude)
         else:
-            # Ako nema signala u koloni, dodaj prethodnu vrednost ili 0
-            signal.append(signal[-1] if signal else 0.5)
+            # POBOLJŠANA interpolacija za prazne kolone
+            if len(signal) >= 2:
+                # Linearna ekstrapolacija
+                signal.append(2 * signal[-1] - signal[-2])
+            elif signal:
+                signal.append(signal[-1])
+            else:
+                # Fallback: pronađi najbliži signal u okolini
+                nearest_signal = find_nearest_signal_value(cleaned, x, height)
+                signal.append(nearest_signal)
     
-    return np.array(signal)
+    # Post-processing: smooth i normalize
+    signal_array = np.array(signal)
+    
+    # Outlier removal
+    if len(signal_array) > 20:
+        p5 = np.percentile(signal_array, 5)
+        p95 = np.percentile(signal_array, 95)
+        signal_array = np.clip(signal_array, p5, p95)
+    
+    # Gentle smoothing
+    if len(signal_array) > 10:
+        window_size = max(3, min(7, len(signal_array) // 50))
+        if window_size % 2 == 0:
+            window_size += 1
+        
+        # Moving average sa edge handling
+        padded = np.pad(signal_array, window_size//2, mode='edge')
+        smoothed = np.convolve(padded, np.ones(window_size)/window_size, mode='valid')
+        signal_array = smoothed
+    
+    return signal_array
+
+def find_nearest_signal_value(binary_img, x, height):
+    """
+    NOVO: Pronalazi najbliži signal za prazne kolone
+    """
+    # Traži u okolini ±5 piksela
+    for offset in range(1, 6):
+        # Levo
+        if x - offset >= 0:
+            left_column = binary_img[:, x - offset]
+            left_points = np.where(left_column == 255)[0]
+            if len(left_points) > 0:
+                avg_y = np.mean(left_points)
+                return (height - avg_y) / height
+        
+        # Desno  
+        if x + offset < binary_img.shape[1]:
+            right_column = binary_img[:, x + offset]
+            right_points = np.where(right_column == 255)[0]
+            if len(right_points) > 0:
+                avg_y = np.mean(right_points)
+                return (height - avg_y) / height
+    
+    # Ako nema ništa u okolini, vrati centru
+    return 0.5
 
 def extract_signal_basic(gray_img):
     """
@@ -565,63 +629,205 @@ def remove_grid_noise(binary_img, grid_info):
 
 def extract_signal_via_spline_fitting(processed_img):
     """
-    KLJUČNO POBOLJŠANJE: Spline fitting umesto centroida
+    KLJUČNO POBOLJŠANJE: Spline fitting preko CELE slike umesto samo konture
     
     Implementira B-spline aproksimaciju EKG krive za preciznu rekonstrukciju
     """
     if not SCIPY_AVAILABLE:
-        # Fallback na osnovnu metodu
-        return extract_signal_basic_fallback(processed_img)
+        # Fallback na poboljšanu osnovnu metodu
+        return extract_signal_full_width_fallback(processed_img)
     
     try:
-        # 1. Detekcija kontura
-        contours, _ = cv2.findContours(processed_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        height, width = processed_img.shape
         
-        if not contours:
-            return np.array([])
+        # NOVO: Prvo pokušaj FULL-WIDTH scan metodu
+        signal_full_width = extract_signal_full_width_scan(processed_img)
         
-        # 2. Pronađi glavnu konturu (najveću ili najbliže centru)
-        main_contour = find_main_ekg_contour(contours, processed_img.shape)
-        
-        if main_contour is None or len(main_contour) < 10:
-            return np.array([])
-        
-        # 3. Konverzija konture u koordinate
-        contour_points = main_contour.reshape(-1, 2)
-        
-        # 4. Sortiranje po x-koordinati za temporalni signal
-        sorted_points = contour_points[np.argsort(contour_points[:, 0])]
-        
-        # 5. SPLINE FITTING - ključno poboljšanje!
-        x_coords = sorted_points[:, 0]
-        y_coords = sorted_points[:, 1]
-        
-        # Ukloni duplikate i outliere
-        x_unique, unique_indices = np.unique(x_coords, return_index=True)
-        y_unique = y_coords[unique_indices]
-        
-        # B-spline aproksimacija
-        if len(x_unique) >= 4:  # Minimum za kubni spline
-            # Kubni spline interpolacija
-            spline_func = interpolate.interp1d(x_unique, y_unique, kind='cubic', 
-                                             bounds_error=False, fill_value='extrapolate')
+        if len(signal_full_width) > width * 0.8:  # Ako imamo dobar coverage
+            # Primeni spline smoothing na full-width signal
+            x_coords = np.arange(len(signal_full_width))
+            y_coords = np.array(signal_full_width)
             
-            # Generiši uniformno samplovane tačke
-            x_new = np.linspace(x_unique[0], x_unique[-1], len(x_unique) * 2)
-            y_new = spline_func(x_new)
+            # Ukloni outliere pre spline fitting
+            if len(y_coords) > 20:
+                p5 = np.percentile(y_coords, 5)
+                p95 = np.percentile(y_coords, 95)
+                y_coords = np.clip(y_coords, p5, p95)
             
-            # Invertuj y-koordinate (slika ima origin u gornjem levom uglu)
-            signal = processed_img.shape[0] - y_new
-            
+            # B-spline smoothing
+            if len(x_coords) >= 4:
+                # Kreiraj spline funkciju
+                try:
+                    # Koristi UnivariateSpline za smoothing
+                    spline_func = interpolate.UnivariateSpline(x_coords, y_coords, s=len(y_coords)*0.1)
+                    y_smoothed = spline_func(x_coords)
+                    
+                    return y_smoothed
+                except:
+                    # Fallback na jednostavan cubic interpolation
+                    spline_func = interpolate.interp1d(x_coords, y_coords, kind='cubic', 
+                                                     bounds_error=False, fill_value='extrapolate')
+                    y_smoothed = spline_func(x_coords)
+                    return y_smoothed
+            else:
+                return y_coords
+        
+        # FALLBACK: Ako full-width ne radi, koristi originalnu konturu metodu ALI kroz celu sliku
         else:
-            # Fallback na linearnu interpolaciju
-            signal = processed_img.shape[0] - y_unique
-        
-        return signal
+            # 1. Detekcija kontura
+            contours, _ = cv2.findContours(processed_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            if not contours:
+                return extract_signal_full_width_fallback(processed_img)
+            
+            # 2. Pronađi glavnu konturu
+            main_contour = find_main_ekg_contour(contours, processed_img.shape)
+            
+            if main_contour is None or len(main_contour) < 10:
+                return extract_signal_full_width_fallback(processed_img)
+            
+            # 3. NOVO: Umesto ograničavanja na bounding rectangle, 
+            #    koristi konturu kao template i skeniraj celu sliku
+            signal = extract_signal_contour_guided_full_scan(processed_img, main_contour)
+            
+            return signal
         
     except Exception as e:
-        print(f"Spline fitting failed: {e}, using fallback")
-        return extract_signal_basic_fallback(processed_img)
+        print(f"Advanced spline fitting failed: {e}, using full-width fallback")
+        return extract_signal_full_width_fallback(processed_img)
+
+def extract_signal_full_width_scan(binary_img):
+    """
+    NOVO: Skenira celu širinu slike za signal ekstrakciju
+    """
+    height, width = binary_img.shape
+    signal = []
+    
+    for x in range(width):
+        column = binary_img[:, x]
+        white_pixels = np.where(column == 255)[0]
+        
+        if len(white_pixels) > 0:
+            # Weighted center of mass
+            groups = []
+            current_group = [white_pixels[0]]
+            
+            for i in range(1, len(white_pixels)):
+                if white_pixels[i] - white_pixels[i-1] <= 3:
+                    current_group.append(white_pixels[i])
+                else:
+                    groups.append(current_group)
+                    current_group = [white_pixels[i]]
+            groups.append(current_group)
+            
+            if groups:
+                positions = []
+                weights = []
+                for group in groups:
+                    center_y = np.mean(group)
+                    weight = len(group)
+                    positions.append(center_y)
+                    weights.append(weight)
+                
+                weighted_y = np.average(positions, weights=weights)
+                signal_value = height - weighted_y  # Invertuj Y
+                signal.append(signal_value)
+            else:
+                avg_y = np.mean(white_pixels)
+                signal.append(height - avg_y)
+        else:
+            # Interpolacija
+            if len(signal) >= 2:
+                signal.append(2 * signal[-1] - signal[-2])
+            elif signal:
+                signal.append(signal[-1])
+            else:
+                signal.append(height / 2)
+    
+    return np.array(signal)
+
+def extract_signal_contour_guided_full_scan(binary_img, main_contour):
+    """
+    NOVO: Koristi konturu kao vodič ali skenira celu sliku
+    """
+    height, width = binary_img.shape
+    
+    # Dobij bounding box samo za informaciju o pozicioniranju
+    x_min, y_min, w, h = cv2.boundingRect(main_contour)
+    center_y_estimate = y_min + h // 2
+    
+    signal = []
+    
+    for x in range(width):  # CELA širina, ne samo bounding box
+        column = binary_img[:, x]
+        white_pixels = np.where(column == 255)[0]
+        
+        if len(white_pixels) > 0:
+            # Ako imamo više grupa piksela, favorizuj one blizu očekivane y pozicije
+            groups = []
+            current_group = [white_pixels[0]]
+            
+            for i in range(1, len(white_pixels)):
+                if white_pixels[i] - white_pixels[i-1] <= 5:
+                    current_group.append(white_pixels[i])
+                else:
+                    groups.append(current_group)
+                    current_group = [white_pixels[i]]
+            groups.append(current_group)
+            
+            if groups:
+                # Weighted by proximity to expected center AND group size
+                best_y = None
+                best_score = 0
+                
+                for group in groups:
+                    center_y = np.mean(group)
+                    size_weight = len(group)
+                    proximity_weight = 1.0 / (1.0 + abs(center_y - center_y_estimate) / height)
+                    combined_score = size_weight * proximity_weight
+                    
+                    if combined_score > best_score:
+                        best_score = combined_score
+                        best_y = center_y
+                
+                if best_y is not None:
+                    signal.append(height - best_y)
+                else:
+                    signal.append(height - np.mean(white_pixels))
+            else:
+                signal.append(height - np.mean(white_pixels))
+        else:
+            # Interpolacija za prazne kolone
+            if len(signal) >= 2:
+                signal.append(2 * signal[-1] - signal[-2])
+            elif signal:
+                signal.append(signal[-1])
+            else:
+                signal.append(height / 2)
+    
+    return np.array(signal)
+
+def extract_signal_full_width_fallback(binary_img):
+    """
+    POBOLJŠAN fallback koji koristi celu širinu slike
+    """
+    height, width = binary_img.shape
+    signal = []
+    
+    for x in range(width):
+        column = binary_img[:, x]
+        white_pixels = np.where(column == 255)[0]
+        
+        if len(white_pixels) > 0:
+            avg_y = np.mean(white_pixels)
+            signal.append(height - avg_y)
+        else:
+            if signal:
+                signal.append(signal[-1])
+            else:
+                signal.append(height / 2)
+    
+    return np.array(signal)
 
 def find_main_ekg_contour(contours, img_shape):
     """

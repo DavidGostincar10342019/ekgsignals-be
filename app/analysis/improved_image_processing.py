@@ -178,7 +178,7 @@ def detect_ekg_leads(binary_img, height, width):
 
 def extract_signal_from_lead(binary_img, lead_info, width):
     """
-    Ekstraktuje signal iz određenog lead-a
+    POBOLJŠANO: Ekstraktuje signal iz određenog lead-a sa boljom obradom
     """
     y_start = int(lead_info["y_start"])
     y_end = int(lead_info["y_end"])
@@ -191,19 +191,76 @@ def extract_signal_from_lead(binary_img, lead_info, width):
         white_pixels = np.where(column > 0)[0]
         
         if len(white_pixels) > 0:
-            # Uzmi srednju poziciju signala u koloni
-            avg_y = np.mean(white_pixels)
-            # Konvertuj u amplitudu (invertovoano jer je Y osa obrnuta)
-            amplitude = (lead_section.shape[0] - avg_y) / lead_section.shape[0]
-            signal.append(amplitude)
+            # POBOLJŠANO: Weighted center of mass umesto simple average
+            groups = []
+            current_group = [white_pixels[0]]
+            
+            for i in range(1, len(white_pixels)):
+                if white_pixels[i] - white_pixels[i-1] <= 3:  # Gap threshold
+                    current_group.append(white_pixels[i])
+                else:
+                    groups.append(current_group)
+                    current_group = [white_pixels[i]]
+            groups.append(current_group)
+            
+            if groups and len(groups) > 0:
+                # Weighted average po veličini grupe
+                positions = []
+                weights = []
+                for group in groups:
+                    center_y = np.mean(group)
+                    weight = len(group)  # Veća grupa = veći weight
+                    positions.append(center_y)
+                    weights.append(weight)
+                
+                weighted_avg = np.average(positions, weights=weights)
+                amplitude = (lead_section.shape[0] - weighted_avg) / lead_section.shape[0]
+                signal.append(amplitude)
+            else:
+                # Fallback na osnovni average
+                avg_y = np.mean(white_pixels)
+                amplitude = (lead_section.shape[0] - avg_y) / lead_section.shape[0]
+                signal.append(amplitude)
         else:
-            # Nema signala - interpoliraj ili uzmi prethodnu vrednost
-            if signal:
+            # POBOLJŠANA interpolacija za prazne kolone
+            if len(signal) >= 2:
+                # Linearna ekstrapolacija
+                signal.append(2 * signal[-1] - signal[-2])
+            elif signal:
                 signal.append(signal[-1])
             else:
-                signal.append(0.5)  # Neutralna vrednost
+                # Traži signal u okolini
+                nearest_value = find_nearest_signal_in_lead(lead_section, x)
+                signal.append(nearest_value)
     
     return signal
+
+def find_nearest_signal_in_lead(lead_section, x):
+    """
+    NOVO: Pronalazi najbliži signal u lead sekciji
+    """
+    height, width = lead_section.shape
+    
+    # Traži u okolini ±5 piksela
+    for offset in range(1, 6):
+        # Levo
+        if x - offset >= 0:
+            left_column = lead_section[:, x - offset]
+            left_pixels = np.where(left_column > 0)[0]
+            if len(left_pixels) > 0:
+                avg_y = np.mean(left_pixels)
+                return (height - avg_y) / height
+        
+        # Desno
+        if x + offset < width:
+            right_column = lead_section[:, x + offset]
+            right_pixels = np.where(right_column > 0)[0]
+            if len(right_pixels) > 0:
+                avg_y = np.mean(right_pixels)
+                return (height - avg_y) / height
+    
+    # Ako nema ništa u okolini, vrati centru
+    return 0.5
 
 def remove_baseline_wander(signal):
     """

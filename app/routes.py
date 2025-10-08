@@ -113,8 +113,8 @@ def analyze_ekg_image():
         if not image_data:
             return jsonify({"error": "Nedostaje slika"}), 400
         
-        # Obrada slike
-        result = process_ekg_image(image_data)
+        # Process with the new unified function
+        result = unified_process_ekg_image(image_data, return_steps=False)
         
         if "error" in result:
             return jsonify(result), 400
@@ -146,41 +146,23 @@ def complete_ekg_analysis():
             # Proverava da li je slika generisana iz signala (preskače validaciju)
             skip_validation = payload.get("skip_validation", False)
             try:
-                image_result = process_ekg_image_improved(payload["image"], skip_validation=skip_validation)
-                
+                print("DEBUG: Processing image with UNIFIED function...")
+                # Use the new unified function
+                image_result = unified_process_ekg_image(payload["image"], return_steps=False)
+
                 if "error" in image_result:
-                    # Fallback na staru verziju
-                    print("DEBUG: Improved processing failed, trying original...")
-                    image_result = process_ekg_image(payload["image"], skip_validation=skip_validation)
-                    
-                    if "error" in image_result:
-                        print(f"DEBUG: Both processing methods failed: {image_result['error']}")
-                        return jsonify(image_result), 400
-                
-                print(f"DEBUG: Image processing result keys: {list(image_result.keys())}")
-                
-                if "error" in image_result:
-                    print(f"DEBUG: Image processing error: {image_result["error"]}")
+                    print(f"DEBUG: Unified image processing failed: {image_result['error']}")
                     return jsonify(image_result), 400
-                
+
                 signal = image_result["signal"]
-                fs = payload.get("fs", 250)
-                print(f"DEBUG: Extracted signal length: {len(signal)}")
-                
-                # Predobrada signala - koristi iz improved_image_processing
-                from .analysis.improved_image_processing import preprocess_for_analysis as preprocess_improved
-                try:
-                    signal, fs = preprocess_improved(signal, fs)
-                except Exception as e:
-                    print(f"DEBUG: Improved preprocessing failed: {e}, using original")
-                    signal, fs = preprocess_for_analysis(signal, fs)
-                print(f"DEBUG: Preprocessed signal length: {len(signal)}")
-                
+                fs = payload.get("fs", 250) # The signal from unified is already processed, no need for preprocess_for_analysis
+                print(f"DEBUG: Extracted signal length from unified processor: {len(signal)}")
+
             except Exception as e:
-                print(f"DEBUG: Exception in image processing: {str(e)}")
+                print(f"DEBUG: Exception in unified image processing block: {str(e)}")
                 import traceback
                 traceback.print_exc()
-                return jsonify({"error": f"Greška pri obradi slike: {str(e)}"}), 400
+                return jsonify({"error": f"Greška pri obradi slike sa objedinjenom funkcijom: {str(e)}"}), 400
         else:
             return jsonify({"error": "Potreban je 'signal' ili 'image' parametar"}), 400
         
@@ -548,26 +530,23 @@ def educational_analysis():
             # Proverava da li je slika generisana iz signala (preskače validaciju)
             skip_validation = payload.get("skip_validation", False)
             try:
-                image_result = process_ekg_image(payload["image"], skip_validation=skip_validation)
-                print(f"DEBUG: Image result keys: {list(image_result.keys())}")
-                
+                print("DEBUG: Processing image with UNIFIED function for educational endpoint...")
+                # Use the new unified function
+                image_result = unified_process_ekg_image(payload["image"], return_steps=False)
+
                 if "error" in image_result:
-                    print(f"DEBUG: Validation error: {image_result['error']}")
+                    print(f"DEBUG: Unified image processing failed: {image_result['error']}")
                     return jsonify(image_result), 400
-                
+
                 signal = image_result["signal"]
-                fs = payload.get("fs", 250)
-                print(f"DEBUG: Signal extracted, length: {len(signal)}")
-                
-                # Predobrada signala
-                signal, fs = preprocess_for_analysis(signal, fs)
-                print(f"DEBUG: Signal preprocessed, final length: {len(signal)}")
-                
+                fs = payload.get("fs", 250) # Signal is already processed
+                print(f"DEBUG: Extracted signal length from unified processor: {len(signal)}")
+
             except Exception as e:
-                print(f"DEBUG: EXCEPTION in image processing: {str(e)}")
+                print(f"DEBUG: Exception in unified image processing block: {str(e)}")
                 import traceback
                 traceback.print_exc()
-                return jsonify({"error": f"Greška pri obradi slike: {str(e)}"}), 400
+                return jsonify({"error": f"Greška pri obradi slike sa objedinjenom funkcijom: {str(e)}"}), 400
         else:
             return jsonify({"error": "Potreban je 'signal' ili 'image' parametar"}), 400
         
@@ -669,39 +648,38 @@ def convert_signal_to_image():
 
 @main.post("/test/signal-image-roundtrip")
 def test_signal_image_roundtrip():
-    """Testira punu petlju: Signal -> Slika -> Analiza signala iz slike"""
+    """Prima sliku, radi round-trip (Slika -> Signal A -> Slika -> Signal B) i poredi Signal A vs Signal B."""
     try:
         payload = request.get_json(force=True)
-        signal = payload.get("signal", [])
+        image_data = payload.get("image", "")
         fs = payload.get("fs", 250)
-        style = payload.get("style", "clinical")
         
-        if not signal:
-            return jsonify({"error": "Nedostaje signal"}), 400
+        if not image_data:
+            return jsonify({"error": "Nedostaje slika"}), 400
+
+        # --- Korak 1: Originalna Slika -> Signal A ---
+        from .analysis.image_processing_visualization import visualize_complete_image_processing
+        initial_processing = visualize_complete_image_processing(image_data, show_intermediate_steps=False)
+        if not initial_processing.get('success', False):
+            return jsonify({"error": f"Greška u inicijalnoj ekstrakciji (Slika -> Signal A): {initial_processing.get('error')}"}), 500
         
-        if len(signal) < 100:
-            return jsonify({"error": "Signal je prekratak (minimum 100 uzoraka)"}), 400
-        
-        print(f"DEBUG: Testing roundtrip for signal length: {len(signal)}")
-        
-        # Testiraj punu petlju
-        test_result = test_signal_to_image_conversion(signal, fs)
+        signal_a = initial_processing['extracted_signal']
+        if not signal_a:
+            return jsonify({"error": "Inicijalna ekstrakcija nije dala signal."}), 500
+
+        # --- Korak 2: Signal A -> Round-trip test -> Korelacija ---
+        # Ova funkcija sada interno radi (Signal A -> Slika -> Signal B) i poredi A vs B
+        round_trip_result = test_signal_to_image_conversion(signal_a, fs)
         
         return jsonify({
-            "test_result": test_result,
-            "original_signal_info": {
-                "length": len(signal),
-                "sampling_frequency": fs,
-                "duration_seconds": len(signal) / fs
-            },
-            "test_style": style
+            "test_description": "Round-trip test (Image -> Signal A -> Image -> Signal B)",
+            "initial_signal_a_length": len(signal_a),
+            "round_trip_results": round_trip_result
         })
         
     except Exception as e:
-        print(f"DEBUG: Error in roundtrip test: {str(e)}")
         import traceback
-        traceback.print_exc()
-        return jsonify({"error": f"Greška pri testiranju roundtrip konverzije: {str(e)}"}), 500
+        return jsonify({"error": f"Greška pri testiranju round-trip konverzije: {str(e)}", "trace": traceback.format_exc()}), 500
 
 @main.post("/analyze/wfdb-to-image")
 def analyze_wfdb_to_image():
@@ -1568,6 +1546,61 @@ def _generate_recommendations(snr_analysis, fft_analysis, hr_hrv_analysis):
         recommendations.append("Signal je u normalnim parametrima")
     
     return recommendations
+
+
+# ============================================================================
+# 🚀 UNIFIED IMAGE PROCESSING ENDPOINTS (V2)
+# ============================================================================
+
+from .analysis.unified_image_processing import unified_process_ekg_image
+
+@main.route('/analyze/image-v2', methods=['POST'])
+def analyze_image_v2():
+    """
+    Processes an EKG image using the new unified and improved processing pipeline.
+    This endpoint is for testing and validation of the new logic.
+    """
+    try:
+        payload = request.get_json(force=True)
+        image_data = payload.get("image", "")
+        
+        if not image_data:
+            return jsonify({"error": "Image data is missing"}), 400
+        
+        # Process the image using the unified function
+        result = unified_process_ekg_image(image_data, return_steps=False)
+        
+        if "error" in result:
+            return jsonify(result), 400
+            
+        return safe_jsonify(result)
+        
+    except Exception as e:
+        return jsonify({"error": f"An error occurred in the V2 endpoint: {str(e)}"}), 500
+
+@main.route('/analyze/image-steps', methods=['POST'])
+def analyze_image_steps():
+    """
+    Processes an EKG image and returns all intermediate processing steps
+    for diagnostics and visualization. Uses the new unified pipeline.
+    """
+    try:
+        payload = request.get_json(force=True)
+        image_data = payload.get("image", "")
+        
+        if not image_data:
+            return jsonify({"error": "Image data is missing"}), 400
+        
+        # Process the image and request intermediate steps
+        result = unified_process_ekg_image(image_data, return_steps=True)
+        
+        if "error" in result:
+            return jsonify(result), 400
+            
+        return safe_jsonify(result)
+        
+    except Exception as e:
+        return jsonify({"error": f"An error occurred in the steps endpoint: {str(e)}"}), 500
 
 
 # ============================================================================

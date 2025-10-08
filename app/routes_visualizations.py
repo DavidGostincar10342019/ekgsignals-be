@@ -704,15 +704,30 @@ def _extract_real_signal_from_image(image_path):
         if img is None:
             return None, f"Failed to load image: {image_path}"
         
-        # Pokušaj osnovni algoritam
+        # POBOLJŠANO: Koristi ISTU metodu kao u analyze/complete
+        print("DEBUG KORELACIJA (file): Koristim poboljšanu metodu ekstrakcije")
+        
+        # Pokušaj poboljšani algoritam PRVO
+        try:
+            advanced_result = extract_ekg_signal_advanced(img)
+            if advanced_result.get("success", False):
+                signal_data = advanced_result["signal"]
+                if len(signal_data) > 0:
+                    print(f"DEBUG KORELACIJA (file): Poboljšani algoritam uspešan - {len(signal_data)} samples")
+                    return np.array(signal_data), None
+        except Exception as e:
+            print(f"DEBUG KORELACIJA (file): Poboljšani algoritam neuspešan: {e}")
+        
+        # Fallback na osnovni algoritam (koji je sada poboljšan)
         try:
             basic_signal = extract_ekg_signal(img)
             if len(basic_signal) > 0:
+                print(f"DEBUG KORELACIJA (file): Osnovni algoritam uspešan - {len(basic_signal)} samples")
                 return np.array(basic_signal), None
         except Exception as e:
-            pass
+            print(f"DEBUG KORELACIJA (file): Osnovni algoritam neuspešan: {e}")
         
-        # Pokušaj napredni algoritam
+        # Ako ništa ne radi, pokušaj stari advanced
         try:
             advanced_result = extract_ekg_signal_advanced(img)
             if advanced_result.get("success", False):
@@ -750,23 +765,28 @@ def _extract_signal_from_base64(image_base64):
         if height < 50 or width < 50:
             return None, f"Image too small ({width}x{height}). Minimum 50x50 pixels required for EKG analysis"
         
-        # Pokušaj osnovni algoritam sa error handling
-        try:
-            basic_signal = extract_ekg_signal(img)
-            if len(basic_signal) >= 2:  # Minimum za correlation analizu
-                return np.array(basic_signal), None
-        except Exception as e:
-            print(f"Basic algorithm failed: {e}")
+        # POBOLJŠANO: Koristi poboljšanu metodu PRVO
+        print("DEBUG KORELACIJA (base64): Koristim poboljšanu metodu ekstrakcije")
         
-        # Pokušaj napredni algoritam sa error handling
+        # Pokušaj poboljšani algoritam PRVO
         try:
             advanced_result = extract_ekg_signal_advanced(img)
             if advanced_result.get("success", False):
                 signal_data = advanced_result.get("signal", [])
                 if len(signal_data) >= 2:  # Minimum za correlation analizu
+                    print(f"DEBUG KORELACIJA (base64): Poboljšani algoritam uspešan - {len(signal_data)} samples")
                     return np.array(signal_data), None
         except Exception as e:
-            print(f"Advanced algorithm failed: {e}")
+            print(f"DEBUG KORELACIJA (base64): Poboljšani algoritam neuspešan: {e}")
+        
+        # Fallback na osnovni algoritam (koji je sada poboljšan)
+        try:
+            basic_signal = extract_ekg_signal(img)
+            if len(basic_signal) >= 2:  # Minimum za correlation analizu
+                print(f"DEBUG KORELACIJA (base64): Osnovni algoritam uspešan - {len(basic_signal)} samples")
+                return np.array(basic_signal), None
+        except Exception as e:
+            print(f"DEBUG KORELACIJA (base64): Osnovni algoritam neuspešan: {e}")
         
         return None, f"Cannot extract valid EKG signal from image ({width}x{height}). Possible causes: Image too small (<50x50), poor quality, no clear EKG traces, or image contains only grid lines without actual signal"
             
