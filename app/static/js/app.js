@@ -1881,8 +1881,8 @@ class EKGAnalyzer {
             </div>
 
             <!-- 1. OPŠTI PODACI -->
-            <div class="result-card">
-                <div class="result-header">
+            <div class="result-card collapsible collapsed">
+                <div class="result-header" onclick="toggleResultCard(this)">
                     <i class="fas fa-info-circle result-icon" style="color: #3498db;"></i>
                     <h3 class="result-title">1. Opšti Podaci o Signalu</h3>
                 </div>
@@ -1919,8 +1919,8 @@ class EKGAnalyzer {
             </div>
 
             <!-- 2. SRČANI RITAM -->
-            <div class="result-card">
-                <div class="result-header">
+            <div class="result-card collapsible collapsed">
+                <div class="result-header" onclick="toggleResultCard(this)">
                     <i class="fas fa-heartbeat result-icon" style="color: #e74c3c;"></i>
                     <h3 class="result-title">2. Srčani Ritam</h3>
                 </div>
@@ -1941,8 +1941,8 @@ class EKGAnalyzer {
             </div>
 
             <!-- 3. R-PIKOVI - JASNO RAZLIKOVANJE -->
-            <div class="result-card">
-                <div class="result-header">
+            <div class="result-card collapsible collapsed">
+                <div class="result-header" onclick="toggleResultCard(this)">
                     <i class="fas fa-chart-line result-icon" style="color: #9b59b6;"></i>
                     <h3 class="result-title">3. Analiza R-pikova</h3>
                 </div>
@@ -2006,8 +2006,8 @@ class EKGAnalyzer {
             </div>
 
             <!-- 4. HRV (Heart Rate Variability) -->
-            <div class="result-card">
-                <div class="result-header">
+            <div class="result-card collapsible collapsed">
+                <div class="result-header" onclick="toggleResultCard(this)">
                     <i class="fas fa-chart-area result-icon" style="color: #f39c12;"></i>
                     <h3 class="result-title">4. Varijabilnost Srčanog Ritma (HRV)</h3>
                 </div>
@@ -2024,8 +2024,8 @@ class EKGAnalyzer {
             </div>
 
             <!-- 5. ARITMIJE -->
-            <div class="result-card">
-                <div class="result-header">
+            <div class="result-card collapsible collapsed">
+                <div class="result-header" onclick="toggleResultCard(this)">
                     <i class="fas fa-exclamation-triangle result-icon" style="color: #e74c3c;"></i>
                     <h3 class="result-title">5. Detekcija Aritmija</h3>
                 </div>
@@ -2040,8 +2040,8 @@ class EKGAnalyzer {
             </div>
 
             <!-- 6. FFT ANALIZA -->
-            <div class="result-card">
-                <div class="result-header">
+            <div class="result-card collapsible collapsed">
+                <div class="result-header" onclick="toggleResultCard(this)">
                     <i class="fas fa-wave-square result-icon" style="color: #3498db;"></i>
                     <h3 class="result-title">6. FFT Frekvencijska Analiza</h3>
                 </div>
@@ -2072,8 +2072,8 @@ class EKGAnalyzer {
             </div>
 
             <!-- 7. KVALITET SIGNALA -->
-            <div class="result-card">
-                <div class="result-header">
+            <div class="result-card collapsible collapsed">
+                <div class="result-header" onclick="toggleResultCard(this)">
                     <i class="fas fa-signal result-icon" style="color: #27ae60;"></i>
                     <h3 class="result-title">7. Kvalitet Signala</h3>
                 </div>
@@ -4952,3 +4952,16 @@ function exportCorrelationResults() {
 
 console.log("🔬 Correlation Analysis system loaded!");
 
+
+// 🎯 ACCORDION TOGGLE FUNCTION - Global function za result cards
+function toggleResultCard(headerElement) {
+    const resultCard = headerElement.closest('.result-card');
+    
+    if (resultCard.classList.contains('collapsed')) {
+        // Expand
+        resultCard.classList.remove('collapsed');
+    } else {
+        // Collapse
+        resultCard.classList.add('collapsed');
+    }
+}

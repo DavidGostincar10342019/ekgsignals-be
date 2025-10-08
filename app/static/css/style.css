@@ -1148,3 +1148,42 @@ kbd {
     padding: 2px 4px;
     white-space: nowrap;
 }
+/* ===== ACCORDION FUNCTIONALITY FOR RESULT CARDS ===== */
+.result-card.collapsible .result-header {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.result-card.collapsible .result-header:hover {
+    background: #f8f9fa;
+}
+
+.result-card.collapsible .result-header::after {
+    content: "\f078"; /* fa-chevron-down */
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    transition: transform 0.3s ease;
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.result-card.collapsible.collapsed .result-header::after {
+    transform: translateY(-50%) rotate(-90deg);
+}
+
+.result-card.collapsible .result-content {
+    max-height: 2000px;
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.result-card.collapsible.collapsed .result-content {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
