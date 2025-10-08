@@ -505,8 +505,11 @@ QUALITY ASSESSMENT:
 def generate_correlation_demo_for_mentor():
     """
     Generiše demonstration za mentora sa REALNIM test podacima
-    Simulira realan image processing pipeline sa očekivanim rezultatima
+    Simulira realan image processing pipeline sa KONZISTENTNIM rezultatima
     """
+    
+    # FIKSNI RANDOM SEED za ponovljive rezultate!
+    np.random.seed(42)  # Isti rezultat svaki put
     
     # Kreiraj test podatke
     from .signal_to_image import create_normal_ekg_signal, create_tachycardia_signal
@@ -514,7 +517,7 @@ def generate_correlation_demo_for_mentor():
     # Normal EKG signal
     normal_signal, fs = create_normal_ekg_signal(duration=8, fs=250)  # 8 sekundi
     
-    # Simuliraj REALAN image extraction proces:
+    # Simuliraj REALAN image extraction proces sa FIKSNIM parametrima:
     # 1. Malo noise-a (image compression)
     # 2. Malo skraćivanje (edge detection nije savršen)
     # 3. Amplitude scaling (digitization effects)
@@ -523,20 +526,20 @@ def generate_correlation_demo_for_mentor():
     # Realistic image processing effects
     extracted_signal = normal_signal.copy()
     
-    # 1. Add realistic noise (like image artifacts)
+    # 1. Add realistic noise (like image artifacts) - FIKSNO
     noise_level = 0.02  # Smanjen noise level
     extracted_signal += noise_level * np.random.randn(len(extracted_signal))
     
-    # 2. Amplitude scaling (90-110% typical for good digitization)
+    # 2. Amplitude scaling (90-110% typical for good digitization) - FIKSNO
     scale_factor = 0.95 + 0.1 * np.random.random()  # Between 0.95-1.05
     extracted_signal *= scale_factor
     
-    # 3. Small length change (+-2% typical)
+    # 3. Small length change (+-2% typical) - FIKSNO
     length_factor = 0.98 + 0.04 * np.random.random()  # Between 0.98-1.02
     new_length = int(len(extracted_signal) * length_factor)
     extracted_signal = signal.resample(extracted_signal, new_length)
     
-    # 4. Small DC offset (baseline drift)
+    # 4. Small DC offset (baseline drift) - FIKSNO
     dc_offset = 0.01 * (np.random.random() - 0.5)
     extracted_signal += dc_offset
     

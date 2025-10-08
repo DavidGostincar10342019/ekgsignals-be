@@ -142,15 +142,15 @@ def process_image_step_by_step(original_image):
         # Sortiraj konture po area
         contours = sorted(contours, key=cv2.contourArea, reverse=True)
         
-        # Probaj različite kriterijume za glavnu konturu
-        for contour in contours[:5]:  # Proveris top 5 kontura
+        # Probaj različite kriterijume za glavnu konturu (DRASTIČNO relaksirani)
+        for contour in contours[:10]:  # Proveris top 10 kontura
             area = cv2.contourArea(contour)
-            if area > 100:  # Smanjena minimalna area
+            if area > 50:  # Veoma mala minimalna area
                 x, y, w, h = cv2.boundingRect(contour)
                 aspect_ratio = w / h if h > 0 else 0
                 
-                # Relaksirani kriterijumi
-                if aspect_ratio > 1.5 or area > 500:  # Ili široka kontura ili velika area
+                # VEOMA relaksirani kriterijumi - gotovo bilo koja kontura
+                if aspect_ratio > 1.2 or area > 200 or len(contour) > 100:
                     main_contour = contour
                     results["metadata"]["contour_selection"] = f"Kontura sa area={area:.0f}, aspect_ratio={aspect_ratio:.2f}"
                     break
@@ -170,10 +170,16 @@ def process_image_step_by_step(original_image):
         # KORAK 9: Ekstrakcija 1D signala
         signal_1d = extract_1d_signal_from_contour(main_contour, gray_image.shape)
         
-        # BACKUP: Ako kontura ne da dobar signal, koristi row-wise approach
-        if len(signal_1d) < 50:
-            signal_1d = extract_signal_row_wise(cleaned)
-            results["metadata"]["signal_extraction"] = "Row-wise extraction korišćen kao backup"
+        # BACKUP: Ako kontura ne da dobar signal, koristi adaptivni approach
+        if len(signal_1d) < 100:  # Povećan threshold
+            print("DEBUG: Kontura daje kratki signal, pokušavam adaptivni metod...")
+            adaptive_signal, best_method, quality_score = extract_signal_adaptive_method(original_image, cleaned)
+            if len(adaptive_signal) > len(signal_1d):
+                signal_1d = adaptive_signal
+                results["metadata"]["signal_extraction"] = f"Adaptivni metod: {best_method}, score: {quality_score:.1f}"
+            else:
+                signal_1d = extract_signal_row_wise(cleaned)
+                results["metadata"]["signal_extraction"] = "Row-wise extraction korišćen kao backup"
         
         results["step_9_signal_1d"] = signal_1d
         results["final_signal"] = signal_1d
@@ -192,11 +198,20 @@ def process_image_step_by_step(original_image):
         else:
             results["final_signal"] = signal_1d
     else:
-        # POSLEDNJI BACKUP: Row-wise extraction iz originalne binarne slike
-        backup_signal = extract_signal_row_wise(binary)
-        results["final_signal"] = backup_signal
-        results["metadata"]["backup_extraction"] = f"Row-wise backup: {len(backup_signal)} tačaka"
-        results["step_9_signal_1d"] = backup_signal
+        # ADAPTIVNI BACKUP: Probaj sve dostupne metode
+        print("DEBUG: Pokušavam adaptivni metod za signal extraction...")
+        adaptive_signal, best_method, quality_score = extract_signal_adaptive_method(original_image, binary)
+        
+        if len(adaptive_signal) > 50:
+            results["final_signal"] = adaptive_signal
+            results["metadata"]["adaptive_extraction"] = f"Adaptivni metod: {best_method}, score: {quality_score:.1f}, tačaka: {len(adaptive_signal)}"
+            results["step_9_signal_1d"] = adaptive_signal
+        else:
+            # FINALNI FALLBACK: Samo row-wise iz originalne binarne slike
+            backup_signal = extract_signal_row_wise(binary)
+            results["final_signal"] = backup_signal
+            results["metadata"]["final_fallback"] = f"Basic row-wise: {len(backup_signal)} tačaka"
+            results["step_9_signal_1d"] = backup_signal
     
     return results
 
@@ -277,6 +292,233 @@ def extract_signal_row_wise(binary_image):
         return signal_array.tolist()
     else:
         return []
+
+def extract_signal_adaptive_method(original_image, binary_image):
+    """
+    ADAPTIVNI METOD: Kombinuje više tehnika za maksimalnu uspešnost
+    """
+    height, width = binary_image.shape
+    
+    # METOD 1: Enhanced row-wise sa outlier removal
+    signal_v1 = extract_signal_enhanced_rowwise(binary_image)
+    
+    # METOD 2: Column-wise (za horizontalno orijentisane signale)
+    signal_v2 = extract_signal_columnwise(binary_image)
+    
+    # METOD 3: Edge-based extraction
+    signal_v3 = extract_signal_edge_based(original_image)
+    
+    # METOD 4: Template matching approach
+    signal_v4 = extract_signal_template_matching(binary_image)
+    
+    # Izaberi najbolji signal na osnovu kvaliteta
+    candidates = [
+        ("enhanced_rowwise", signal_v1),
+        ("columnwise", signal_v2), 
+        ("edge_based", signal_v3),
+        ("template_matching", signal_v4)
+    ]
+    
+    best_signal = []
+    best_score = 0
+    best_method = "none"
+    
+    for method_name, signal in candidates:
+        if len(signal) > 50:  # Minimum viable signal
+            score = evaluate_signal_quality(signal)
+            if score > best_score:
+                best_score = score
+                best_signal = signal
+                best_method = method_name
+    
+    return best_signal, best_method, best_score
+
+def extract_signal_enhanced_rowwise(binary_image):
+    """POBOLJŠAN row-wise sa outlier detection"""
+    height, width = binary_image.shape
+    signal_points = []
+    
+    for x in range(width):
+        white_pixels = np.where(binary_image[:, x] == 255)[0]
+        
+        if len(white_pixels) > 0:
+            # Ukloni outliere (gornje/donje 10%)
+            if len(white_pixels) > 5:
+                sorted_pixels = np.sort(white_pixels)
+                # Uzmi middle 80% za stabilnost
+                start_idx = len(sorted_pixels) // 10
+                end_idx = len(sorted_pixels) - len(sorted_pixels) // 10
+                white_pixels = sorted_pixels[start_idx:end_idx]
+            
+            avg_y = np.mean(white_pixels)
+            inverted_y = height - avg_y
+            signal_points.append(inverted_y)
+        else:
+            # Smart interpolation
+            if len(signal_points) >= 2:
+                # Linear interpolation između poslednje dve tačke
+                signal_points.append(2 * signal_points[-1] - signal_points[-2])
+            elif signal_points:
+                signal_points.append(signal_points[-1])
+            else:
+                signal_points.append(height / 2)
+    
+    return normalize_signal(signal_points)
+
+def extract_signal_columnwise(binary_image):
+    """Column-wise extraction za horizontalne signale"""
+    height, width = binary_image.shape
+    signal_points = []
+    
+    for y in range(height):
+        white_pixels = np.where(binary_image[y, :] == 255)[0]
+        
+        if len(white_pixels) > 0:
+            avg_x = np.mean(white_pixels)
+            # Map x-coordinate to amplitude
+            normalized_amp = (avg_x - width/2) / (width/2)
+            signal_points.append(normalized_amp)
+    
+    # Reverse jer idemo odozgo nadole
+    signal_points.reverse()
+    return normalize_signal(signal_points)
+
+def extract_signal_edge_based(original_image):
+    """Edge detection sa Hough transform"""
+    try:
+        if len(original_image.shape) == 3:
+            gray = cv2.cvtColor(original_image, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = original_image
+        
+        # Canny edge detection sa različitim parametrima
+        edges = cv2.Canny(gray, 30, 100)
+        
+        # Probabilistic Hough Line Transform
+        lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=20, 
+                               minLineLength=30, maxLineGap=10)
+        
+        if lines is not None and len(lines) > 5:
+            # Sortiraj linije po x koordinati
+            line_points = []
+            for line in lines:
+                x1, y1, x2, y2 = line[0]
+                # Dodaj početnu i krajnju tačku
+                line_points.extend([(x1, y1), (x2, y2)])
+            
+            # Sortiraj po x koordinati
+            line_points.sort(key=lambda p: p[0])
+            
+            # Ekstraktuj y vrednosti
+            signal_points = [p[1] for p in line_points]
+            
+            # Invertuј y koordinate
+            height = gray.shape[0]
+            signal_points = [height - y for y in signal_points]
+            
+            return normalize_signal(signal_points)
+    except:
+        pass
+    
+    return []
+
+def extract_signal_template_matching(binary_image):
+    """Template matching za EKG pattern detection"""
+    height, width = binary_image.shape
+    
+    # Kreiraj jednostavan EKG template (QRS pattern)
+    template_width = min(50, width // 10)
+    template = np.zeros((20, template_width))
+    
+    # Jednostavan QRS oblik
+    mid = template_width // 2
+    template[10, :mid-5] = 255  # P wave
+    template[5:15, mid-2:mid+3] = 255  # QRS complex
+    template[10, mid+5:] = 255  # T wave
+    
+    try:
+        # Template matching
+        result = cv2.matchTemplate(binary_image, template.astype(np.uint8), cv2.TM_CCOEFF_NORMED)
+        
+        # Pronađi matches
+        threshold = 0.3
+        locations = np.where(result >= threshold)
+        
+        if len(locations[0]) > 0:
+            # Sortiraj po x koordinati
+            matches = list(zip(locations[1], locations[0]))  # (x, y)
+            matches.sort()
+            
+            signal_points = []
+            for x, y in matches:
+                # Center y koordinata template matcha
+                center_y = y + template.shape[0] // 2
+                inverted_y = height - center_y
+                signal_points.append(inverted_y)
+            
+            return normalize_signal(signal_points)
+    except:
+        pass
+    
+    return []
+
+def evaluate_signal_quality(signal):
+    """Evaluacija kvaliteta ekstraktovanog signala"""
+    if len(signal) < 50:
+        return 0
+    
+    signal = np.array(signal)
+    score = 0
+    
+    # 1. Dužina signala (longer is better)
+    score += min(1.0, len(signal) / 500) * 30
+    
+    # 2. Varijabilnost (signal treba da varira)
+    std_score = min(1.0, np.std(signal) / 0.5) * 25
+    score += std_score
+    
+    # 3. Smooth transitions (manje sharp jump-ova)
+    if len(signal) > 1:
+        diff = np.diff(signal)
+        smooth_score = max(0, 1.0 - np.std(diff) / 2.0) * 20
+        score += smooth_score
+    
+    # 4. Dynamic range
+    range_score = min(1.0, (np.max(signal) - np.min(signal)) / 2.0) * 15
+    score += range_score
+    
+    # 5. Non-constant signal
+    if np.std(signal) > 0.01:
+        score += 10
+    
+    return score
+
+def normalize_signal(signal_points):
+    """Normalizacija signala"""
+    if len(signal_points) < 10:
+        return []
+    
+    signal_array = np.array(signal_points)
+    
+    # Ukloni outliere (top/bottom 5%)
+    if len(signal_array) > 20:
+        p5 = np.percentile(signal_array, 5)
+        p95 = np.percentile(signal_array, 95)
+        signal_array = np.clip(signal_array, p5, p95)
+    
+    # Smooth signal (moving average)
+    if len(signal_array) > 10:
+        window_size = min(5, len(signal_array) // 10)
+        signal_array = np.convolve(signal_array, np.ones(window_size)/window_size, mode='same')
+    
+    # Centri signal
+    signal_array = signal_array - np.mean(signal_array)
+    
+    # Normalizuj amplitudu
+    if np.std(signal_array) > 0:
+        signal_array = signal_array / np.std(signal_array)
+    
+    return signal_array.tolist()
 
 def filter_ekg_signal(signal_1d, fs=250):
     """
