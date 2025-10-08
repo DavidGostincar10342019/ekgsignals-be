@@ -280,7 +280,7 @@ def create_pole_zero_plot(zeros, poles):
         if len(zeros) > 0:
             zero_real = [complex(z).real for z in zeros]
             zero_imag = [complex(z).imag for z in zeros]
-            ax.scatter(zero_real, zero_imag, marker='o', s=100, c='blue', facecolors='none', label='Nulte tačke')
+            ax.scatter(zero_real, zero_imag, marker='o', s=100, facecolors='none', edgecolors='blue', label='Nulte tačke')
         
         ax.set_xlim(-2, 2)
         ax.set_ylim(-2, 2)

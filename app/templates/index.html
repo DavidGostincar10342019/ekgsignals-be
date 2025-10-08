@@ -173,6 +173,27 @@
         }
 
         /* Removed Nova Analiza button styles */
+        
+        /* Dodati stilovi za nova dugmad */
+        .btn-info {
+            background: linear-gradient(135deg, #3498db, #2980b9) !important;
+            color: white !important;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #f39c12, #e67e22) !important;
+            color: white !important;
+        }
+        
+        .btn-info:hover {
+            background: linear-gradient(135deg, #2980b9, #1f5a85) !important;
+            transform: translateY(-2px);
+        }
+        
+        .btn-warning:hover {
+            background: linear-gradient(135deg, #e67e22, #d35400) !important;
+            transform: translateY(-2px);
+        }
     </style>
     
     <!-- Font Awesome for icons -->
@@ -252,6 +273,14 @@
                         <button id="rawSignalBtn" class="btn btn-primary">
                             <i class="fas fa-file-upload"></i>
                             Uvezi Sirovi Signal
+                        </button>
+                        <button id="correlationTestBtn" class="btn btn-info" onclick="showCorrelationTest()" style="display: none;">
+                            <i class="fas fa-microscope"></i>
+                            Test Korelacije
+                        </button>
+                        <button id="imageProcessingBtn" class="btn btn-warning" onclick="showImageProcessingSteps()" style="display: none;">
+                            <i class="fas fa-cogs"></i>
+                            Image Processing
                         </button>
                     </div>
                     

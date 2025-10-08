@@ -219,46 +219,63 @@ def test_signal_to_image_conversion(signal, fs=250):
     """
     print("🔄 Testiranje Signal -> Slika -> Analiza...")
     
-    # 1. Kreiraj sliku iz signala
-    image_data = create_ekg_image_from_signal(signal, fs, style="clinical")
-    
-    # 2. Sačuvaj sliku za debug (opciono)
-    # image_data['image_pil'].save('tmp_rovodev_generated_ekg.png')
-    
-    # 3. Testiraj kroz postojeću logiku obrade slike
-    from .image_processing import process_ekg_image
-    
     try:
-        # Konvertuj nazad kroz postojeću logiku (preskačemo validaciju za test slike)
-        analysis_result = process_ekg_image(image_data['image_base64'], skip_validation=True)
+        # 1. Kreiraj sliku iz signala
+        print(f"DEBUG: Creating image from signal, len={len(signal)}")
+        image_data = create_ekg_image_from_signal(signal, fs, style="clinical")
+        print("DEBUG: Image created successfully")
         
-        if 'error' in analysis_result:
+        # 2. Sačuvaj sliku za debug (opciono)
+        # image_data['image_pil'].save('tmp_rovodev_generated_ekg.png')
+        
+        # 3. Testiraj kroz postojeću logiku obrade slike
+        from .image_processing import process_ekg_image
+        
+        try:
+            print("DEBUG: Processing EKG image...")
+            # Konvertuj nazad kroz postojeću logiku (preskačemo validaciju za test slike)
+            analysis_result = process_ekg_image(image_data['image_base64'], skip_validation=True)
+            print("DEBUG: Image processing completed")
+            
+            if 'error' in analysis_result:
+                return {
+                    'success': False,
+                    'error': analysis_result['error'],
+                    'image_generated': True
+                }
+            
+            extracted_signal = analysis_result['signal']
+            print(f"DEBUG: Extracted signal, len={len(extracted_signal)}")
+            
+            # Poredi originalni i ekstraktovani signal
+            print("DEBUG: Comparing signals...")
+            comparison = compare_signals(signal, extracted_signal, fs)
+            print("DEBUG: Signal comparison completed")
+            
+            return {
+                'success': True,
+                'image_generated': True,
+                'signal_extracted': True,
+                'original_length': len(signal),
+                'extracted_length': len(extracted_signal),
+                'comparison': comparison,
+                'image_metadata': image_data['metadata']
+            }
+            
+        except Exception as e:
+            print(f"DEBUG: Error in image processing: {e}")
             return {
                 'success': False,
-                'error': analysis_result['error'],
-                'image_generated': True
+                'error': str(e),
+                'image_generated': True,
+                'signal_extracted': False
             }
-        
-        extracted_signal = analysis_result['signal']
-        
-        # Poredi originalni i ekstraktovani signal
-        comparison = compare_signals(signal, extracted_signal, fs)
-        
-        return {
-            'success': True,
-            'image_generated': True,
-            'signal_extracted': True,
-            'original_length': len(signal),
-            'extracted_length': len(extracted_signal),
-            'comparison': comparison,
-            'image_metadata': image_data['metadata']
-        }
-        
     except Exception as e:
+        print(f"DEBUG: Error in image creation: {e}")
         return {
             'success': False,
             'error': str(e),
-            'image_generated': True,
+            'image_generated': False,
             'signal_extracted': False
         }
 
@@ -268,17 +285,37 @@ def compare_signals(original, extracted, fs):
     original = np.array(original)
     extracted = np.array(extracted)
     
-    # Normalizuj signale za poređenje
-    orig_norm = (original - np.mean(original)) / np.std(original)
-    extr_norm = (extracted - np.mean(extracted)) / np.std(extracted)
+    # Normalizuj signale za poređenje sa zaštitom od deljenja nulom
+    orig_std = np.std(original)
+    extr_std = np.std(extracted)
+    
+    # Ako je std = 0 (konstantan signal), koristi originalni signal
+    if orig_std == 0:
+        orig_norm = original - np.mean(original)  # Centriran ali nenormalizovan
+    else:
+        orig_norm = (original - np.mean(original)) / orig_std
+        
+    if extr_std == 0:
+        extr_norm = extracted - np.mean(extracted)  # Centriran ali nenormalizovan
+    else:
+        extr_norm = (extracted - np.mean(extracted)) / extr_std
     
     # Smanji na istu dužinu
     min_len = min(len(orig_norm), len(extr_norm))
     orig_norm = orig_norm[:min_len]
     extr_norm = extr_norm[:min_len]
     
-    # Korelacija
-    correlation = np.corrcoef(orig_norm, extr_norm)[0, 1]
+    # Korelacija sa zaštitom
+    try:
+        if len(orig_norm) > 1 and len(extr_norm) > 1:
+            correlation = np.corrcoef(orig_norm, extr_norm)[0, 1]
+            # Proveri da li je korelacija validna (može biti NaN)
+            if np.isnan(correlation):
+                correlation = 0.0
+        else:
+            correlation = 0.0
+    except:
+        correlation = 0.0
     
     # RMSE
     rmse = np.sqrt(np.mean((orig_norm - extr_norm) ** 2))

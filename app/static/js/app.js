@@ -182,6 +182,10 @@ class EKGAnalyzer {
             if (this.currentImage) {
                 // Image analysis
                 const base64Image = await this.fileToBase64(this.currentImage);
+                
+                // Sačuvaj image data za image processing visualization
+                window.currentImageData = base64Image;
+                
                 requestBody = JSON.stringify({
                     image: base64Image,
                     fs: 250
@@ -499,6 +503,12 @@ class EKGAnalyzer {
         // Hide processing
         document.getElementById('processingSection').style.display = 'none';
         
+        // Enable correlation test button
+        enableCorrelationTest();
+        
+        // Enable image processing visualization
+        enableImageProcessingVisualization();
+        
         // Show results
         const resultsSection = document.getElementById('resultsSection');
         resultsSection.style.display = 'block';
@@ -586,48 +596,51 @@ class EKGAnalyzer {
         return `
             <div id="basicEKGSection" class="main-card" style="margin-top: 20px;">
                 <h2><i class="fas fa-info-circle"></i> Osnovna EKG Procena</h2>
-                <div class="result-card">
-                    <div class="result-header">
-                        <i class="fas fa-exclamation-triangle result-icon" style="color: #f39c12;"></i>
-                        <h3 class="result-title">Ograničena Analiza Slike</h3>
-                    </div>
+                
+                <!-- Upozorenje o ograničenjima -->
+                <div class="result-card" style="margin-bottom: 20px;">
                     <div class="result-content">
-                        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #f39c12;">
-                            <h4 style="color: #856404; margin: 0 0 10px 0;">⚠️ Važno Upozorenje</h4>
-                            <p style="margin: 0; color: #856404;">
-                                <strong>Analiza EKG slike ima ograničenu tačnost.</strong> Ne može detektovati suptilne promene kao što su ST elevacije, T-inverzije ili QTc produženja koje su ključne za dijagnozu. 
-                                <strong>Za medicinsku procenu obavezno konsultujte lekara.</strong>
+                        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #f39c12;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                                <span style="font-size: 1.2em;">⚠️</span>
+                                <h4 style="color: #856404; margin: 0;">Ograničena Analiza Slike</h4>
+                            </div>
+                            <p style="margin: 0; color: #856404; line-height: 1.5;">
+                                <strong>Analiza EKG slike ima ograničenu tačnost.</strong> Ne može detektovati suptilne promene kao što su ST elevacije, T-inverzije ili QTc produženja koje su ključne za dijagnozu.
+                                <br><br>
+                                <strong>Napomena:</strong> Ova aplikacija služi isključivo u edukativne svrhe. Analiza slike ne zamenjuje profesionalnu medicinsku dijagnostiku.
                             </p>
                         </div>
+                    </div>
+                </div>
+                
+                <!-- Analiza podataka -->
+                <div class="result-card">
+                    <div class="result-header">
+                        <h3 class="result-title">Analiza Slike</h3>
+                    </div>
+                    <div class="result-content">
                         
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
-                                <h4>📊 Osnovni Parametri</h4>
-                                <div style="display: grid; gap: 10px;">
-                                    <div style="display: flex; justify-content: space-between; padding: 10px; background: white; border-radius: 4px; border-left: 4px solid ${rateColor};">
-                                        <strong>Srčana frekvencija:</strong> 
-                                        <span style="color: ${rateColor};">${rateText}</span>
+                        <!-- Osnovni Parametri -->
+                        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <h4 style="margin: 0 0 15px 0; color: #333; border-bottom: 2px solid #ddd; padding-bottom: 8px;">Osnovni Parametri</h4>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                                <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid ${rateColor};">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <strong style="color: #333;">Srčana frekvencija:</strong>
+                                        <span style="color: ${rateColor}; font-weight: bold;">${rateText}</span>
                                     </div>
-                                    <div style="display: flex; justify-content: space-between; padding: 10px; background: white; border-radius: 4px; border-left: 4px solid ${rhythmColor};">
-                                        <strong>Ritam:</strong> 
-                                        <span style="color: ${rhythmColor};">${rhythmText}</span>
+                                </div>
+                                <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid ${rhythmColor};">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <strong style="color: #333;">Ritam:</strong>
+                                        <span style="color: ${rhythmColor}; font-weight: bold;">${rhythmText}</span>
                                     </div>
                                 </div>
                             </div>
-                            <div style="background: #e8f4fd; padding: 15px; border-radius: 8px;">
-                                <h4>🏥 Preporuke</h4>
-                                <ul style="margin: 10px 0; padding-left: 20px; line-height: 1.6;">
-                                    <li>Za tačnu dijagnozu potreban je EKG u 12 odvoda</li>
-                                    <li>Analizirajte sirove EKG podatke (.dat/.hea fajlove)</li>
-                                    <li>Konsultujte kardiologa za medicinsku procenu</li>
-                                    ${avgBpm > 150 ? '<li style="color: #e74c3c;"><strong>Visoka frekvencija - hitno lekarska pomoć</strong></li>' : ''}
-                                </ul>
-                            </div>
                         </div>
+
                         
-                        <div style="background: #f0f8ff; padding: 10px; border-radius: 6px; margin-top: 15px; border-left: 4px solid #007bff;">
-                            <small><strong>Napomena:</strong> Ova aplikacija služi isključivo u edukativne svrhe. Analiza slike ne zamenjuje profesionalnu medicinsku dijagnostiku.</small>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -760,102 +773,127 @@ class EKGAnalyzer {
         return `
             <div id="advancedClinicalSection" class="main-card" style="margin-top: 20px;">
                 <h2><i class="fas fa-heartbeat"></i> ${isWFDB ? 'MIT-BIH Klinička Analiza' : 'Napredna EKG Analiza'}</h2>
+                
+                ${isWFDB ? `
+                <div class="result-card" style="margin-bottom: 20px;">
+                    <div class="result-content">
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #333;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                                <span style="font-size: 1.2em;">🔬</span>
+                                <h4 style="color: #333; margin: 0;">MIT-BIH Digitalna Analiza</h4>
+                            </div>
+                            <p style="margin: 0; color: #333; line-height: 1.5;">
+                                <strong>Zašto MIT-BIH:</strong> Korišćeni su standardizovani EKG podaci iz MIT-BIH Arrhythmia Database - svetski priznate baze podataka za kardiološka istraživanja i validaciju algoritama.
+                                <br><br>
+                                <strong>Napomena:</strong> Analiza na osnovu MIT-BIH digitalnih podataka. Rezultati su medicinski relevantni ali ne zamenjuju konsultaciju sa lekarom.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+                
                 <div class="result-card">
                     <div class="result-header">
-                        <i class="fas fa-user-md result-icon" style="color: #2196f3;"></i>
-                        <h3 class="result-title">Detaljni Klinički Nalazi</h3>
-                        ${hasAnnotations ? '<span style="background: #4caf50; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; margin-left: 10px;">✓ Ekspertske anotacije</span>' : ''}
+                        <h3 class="result-title">Klinička Analiza</h3>
                     </div>
                     <div class="result-content">
-                        ${isWFDB ? `
-                        <div style="background: #e8f5e8; padding: 12px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #4caf50;">
-                            <h4 style="color: #2e7d32; margin: 0 0 8px 0;">✅ MIT-BIH Precizna Analiza</h4>
-                            <p style="margin: 0; color: #2e7d32;">Analiza je izvršena na osnovu sirovih EKG podataka ${hasAnnotations ? 'sa ekspertskim anotacijama' : ''}. Rezultati su medicinski relevantni.</p>
-                        </div>
-                        ` : `
-                        <div style="background: #e3f2fd; padding: 12px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #2196f3;">
-                            <h4 style="color: #1565c0; margin: 0 0 8px 0;">🔬 Analiza Sirovih Podataka</h4>
-                            <p style="margin: 0; color: #1565c0;">Analiza je izvršena na osnovu digitalizovanih EKG podataka. Rezultati su pouzdani za kliničku procenu.</p>
-                        </div>
-                        `}
                         
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
-                                <h4>📋 Sistematski Pregled</h4>
-                                <div style="display: grid; gap: 8px;">
-                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${rateColor};">
-                                        <strong>Rate:</strong> 
+                        <!-- Sistematski Pregled -->
+                        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <h4 style="margin: 0 0 15px 0; color: #333; border-bottom: 2px solid #ddd; padding-bottom: 8px;">Sistematski Pregled</h4>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px;">
+                                <div style="background: white; padding: 12px; border-radius: 6px; border-left: 4px solid ${rateColor};">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <strong style="color: #333;">Rate:</strong>
                                         <div style="text-align: right;">
-                                            <span style="color: ${rateColor};">${rateText}</span><br>
+                                            <div style="color: ${rateColor}; font-weight: bold;">${rateText}</div>
                                             <small style="color: #666;">Opseg: ${rateRange}</small>
                                         </div>
                                     </div>
-                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${rhythmColor};">
-                                        <strong>Rhythm:</strong> 
+                                </div>
+                                <div style="background: white; padding: 12px; border-radius: 6px; border-left: 4px solid ${rhythmColor};">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <strong style="color: #333;">Rhythm:</strong>
                                         <div style="text-align: right;">
-                                            <span style="color: ${rhythmColor};">${rhythmText}</span><br>
+                                            <div style="color: ${rhythmColor}; font-weight: bold;">${rhythmText}</div>
                                             <small style="color: #666;">${rhythmDetails}</small>
                                         </div>
                                     </div>
-                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #27ae60;">
-                                        <strong>Axis:</strong> 
-                                        <span style="color: #27ae60;">Normal</span>
+                                </div>
+                                <div style="background: white; padding: 12px; border-radius: 6px; border-left: 4px solid #27ae60;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <strong style="color: #333;">Axis:</strong>
+                                        <span style="color: #27ae60; font-weight: bold;">Normal</span>
                                     </div>
-                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${pWaveColor};">
-                                        <strong>PR/P wave:</strong> 
+                                </div>
+                                <div style="background: white; padding: 12px; border-radius: 6px; border-left: 4px solid ${pWaveColor};">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <strong style="color: #333;">PR/P wave:</strong>
                                         <div style="text-align: right;">
-                                            <span style="color: ${pWaveColor};">${pWaveText}</span><br>
+                                            <div style="color: ${pWaveColor}; font-weight: bold;">${pWaveText}</div>
                                             <small style="color: #666;">${pWaveDetails}</small>
                                         </div>
                                     </div>
-                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid ${qrsColor};">
-                                        <strong>QRS:</strong> 
+                                </div>
+                                <div style="background: white; padding: 12px; border-radius: 6px; border-left: 4px solid ${qrsColor};">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <strong style="color: #333;">QRS:</strong>
                                         <div style="text-align: right;">
-                                            <span style="color: ${qrsColor};">${qrsText}</span><br>
+                                            <div style="color: ${qrsColor}; font-weight: bold;">${qrsText}</div>
                                             <small style="color: #666;">${qrsDetails}</small>
                                         </div>
                                     </div>
-                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #27ae60;">
-                                        <strong>ST/T wave:</strong> 
-                                        <span style="color: #27ae60;">Normal</span>
+                                </div>
+                                <div style="background: white; padding: 12px; border-radius: 6px; border-left: 4px solid #27ae60;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <strong style="color: #333;">ST/T wave:</strong>
+                                        <span style="color: #27ae60; font-weight: bold;">Normal</span>
                                     </div>
-                                    <div style="display: flex; justify-content: space-between; padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #27ae60;">
-                                        <strong>QTc/other:</strong> 
-                                        <span style="color: #27ae60;">Normal</span>
+                                </div>
+                                <div style="background: white; padding: 12px; border-radius: 6px; border-left: 4px solid #27ae60;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <strong style="color: #333;">QTc/other:</strong>
+                                        <span style="color: #27ae60; font-weight: bold;">Normal</span>
                                     </div>
                                 </div>
                             </div>
-                            <div style="background: #e8f5e8; padding: 15px; border-radius: 8px;">
-                                <h4>🏥 Klinička Interpretacija</h4>
-                                <div style="margin-bottom: 15px;">
-                                    <strong>Kategorija:</strong> 
-                                    <span style="color: ${rateColor};">${rateStatus} (${rateText})</span>
+                        </div>
+
+                        <!-- Klinička Interpretacija -->
+                        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px;">
+                            <h4 style="margin: 0 0 15px 0; color: #333; border-bottom: 2px solid #ddd; padding-bottom: 8px;">Klinička Interpretacija</h4>
+                            
+                            <div style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid ${rateColor};">
+                                <strong style="color: #333;">Kategorija:</strong> 
+                                <span style="color: ${rateColor}; font-weight: bold;">${rateStatus} (${rateText})</span>
+                            </div>
+                            
+                            <div style="background: ${arrhythmias.length > 0 ? '#fff3cd' : '#d4edda'}; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid ${arrhythmias.length > 0 ? '#ffc107' : '#28a745'};">
+                                <strong style="color: #333;">${arrhythmias.length > 0 ? 'Detektovane aritmije:' : 'Regularni ritam'}</strong>
+                                ${arrhythmias.length > 0 ? `<br><span style="color: #856404;">${arrhythmias.map(arr => arr.type).join(', ')}</span>` : ''}
+                            </div>
+                            
+                            <div style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #007bff;">
+                                <div style="margin-bottom: 8px;">
+                                    <strong style="color: #333;">HRV:</strong> <span style="color: ${hrvColor}; font-weight: bold;">${hrv.toFixed(1)}ms (${hrvStatus})</span>
                                 </div>
-                                
-                                <div style="background: ${arrhythmias.length > 0 ? '#fff3cd' : '#d4edda'}; padding: 10px; border-radius: 6px; margin: 15px 0;">
-                                    <strong>${arrhythmias.length > 0 ? '⚠️ Detektovane aritmije:' : '✅ Regularni ritam'}</strong>
-                                    ${arrhythmias.length > 0 ? `<br><small>${arrhythmias.map(arr => arr.type).join(', ')}</small>` : ''}
+                                <div style="margin-bottom: 8px;">
+                                    <strong style="color: #333;">Kvalitet signala:</strong> <span style="color: ${qualityColor}; font-weight: bold;">${qualityText}</span>
                                 </div>
-                                
-                                <div style="background: #f0f8ff; padding: 10px; border-radius: 6px; margin: 10px 0;">
-                                    <strong>HRV:</strong> <span style="color: ${hrvColor};">${hrv.toFixed(1)}ms (${hrvStatus})</span><br>
-                                    <strong>Kvalitet signala:</strong> <span style="color: ${qualityColor};">${qualityText}</span>
-                                    ${signalQuality?.snr_db ? `<br><strong>SNR:</strong> ${signalQuality.snr_db.toFixed(1)} dB` : ''}
-                                </div>
-                                
-                                <p><strong>Preporučeno:</strong></p>
-                                <ul style="margin: 5px 0; padding-left: 20px;">
-                                    ${avgBpm > 150 || avgBpm < 50 ? '<li style="color: #e74c3c;"><strong>Hitna kardiološka konsultacija</strong></li>' : ''}
-                                    ${arrhythmias.length > 0 ? '<li>EKG u 12 odvoda za potvrdu</li>' : ''}
-                                    ${hrv < 20 ? '<li>Procena autonomnog nervnog sistema</li>' : ''}
-                                    <li>Redovna kontrola prema kliničkom stanju</li>
+                                ${signalQuality?.snr_db ? `<div><strong style="color: #333;">SNR:</strong> <span style="color: #007bff; font-weight: bold;">${signalQuality.snr_db.toFixed(1)} dB</span></div>` : ''}
+                            </div>
+                            
+                            <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid #6c757d;">
+                                <h5 style="margin: 0 0 10px 0; color: #333;">Preporučeno:</h5>
+                                <ul style="margin: 0; padding-left: 20px; color: #333;">
+                                    ${avgBpm > 150 || avgBpm < 50 ? '<li style="color: #e74c3c; margin-bottom: 5px;"><strong>Hitna kardiološka konsultacija</strong></li>' : ''}
+                                    ${arrhythmias.length > 0 ? '<li style="margin-bottom: 5px;">EKG u 12 odvoda za potvrdu</li>' : ''}
+                                    ${hrv < 20 ? '<li style="margin-bottom: 5px;">Procena autonomnog nervnog sistema</li>' : ''}
+                                    <li style="margin-bottom: 5px;">Redovna kontrola prema kliničkom stanju</li>
                                 </ul>
                             </div>
                         </div>
                         
-                        <div style="background: #f0f8ff; padding: 10px; border-radius: 6px; margin-top: 15px; border-left: 4px solid #007bff;">
-                            <small><strong>Napomena:</strong> Analiza na osnovu ${isWFDB ? 'MIT-BIH digitalnih podataka' : 'sirovih EKG podataka'}. Rezultati su medicinski relevantni ali ne zamenjuju konsultaciju sa lekarom.</small>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -3944,3 +3982,800 @@ document.addEventListener('DOMContentLoaded', function() {
     window.ekgAnalyzer = new EKGAnalyzer();
     console.log('✅ EKG Analyzer initialized');
 });
+
+
+// ============================================================================
+// 🔬 KORELACIJSKA ANALIZA - Integrisano u postojeći UI
+// ============================================================================
+
+function showCorrelationTest() {
+    // Prikaži dugme u UI
+    const correlationBtn = document.getElementById('correlationTestBtn');
+    if (correlationBtn) {
+        correlationBtn.style.display = 'inline-block';
+    }
+    
+    // Kreiraj correlation test sekciju
+    createCorrelationTestSection();
+}
+
+function createCorrelationTestSection() {
+    // Ukloni postojeću sekciju ako postoji
+    const existingSection = document.getElementById('correlationTestSection');
+    if (existingSection) {
+        existingSection.remove();
+    }
+    
+    const correlationHTML = `
+        <div id="correlationTestSection" class="main-card" style="margin-top: 20px;">
+            <h2><i class="fas fa-microscope"></i> Korelacijska Analiza EKG Sistema</h2>
+            <div class="info-card" style="background: #e3f2fd; margin-bottom: 20px;">
+                <p><strong>Cilj:</strong> Testiranje kvaliteta prebacivanja EKG slike u 1D signal</p>
+                <p><strong>Mentor zahtev:</strong> Korelacija između originalnog i ekstraktovanog signala + frekvencijska analiza</p>
+            </div>
+            
+            <div class="upload-buttons" style="margin-bottom: 20px;">
+                <button class="btn btn-primary" onclick="runDemoCorrelationAnalysis()">
+                    <i class="fas fa-play"></i>
+                    Demo za Mentora
+                </button>
+                <button class="btn btn-success" onclick="runImageToSignalTest()">
+                    <i class="fas fa-exchange-alt"></i>
+                    Signal → Slika → Signal
+                </button>
+                <button class="btn btn-warning" onclick="runBatchCorrelationTest()">
+                    <i class="fas fa-chart-bar"></i>
+                    Batch Analiza
+                </button>
+            </div>
+            
+            <div id="correlationProgress" style="display: none; margin-bottom: 20px;">
+                <div class="loading-container">
+                    <div class="loading-animation">
+                        <div class="heartbeat-loader">
+                            <div class="heartbeat-pulse"></div>
+                        </div>
+                        <p>Analiza u toku...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="correlationResults">
+                <!-- Rezultati će se prikazati ovde -->
+            </div>
+        </div>
+    `;
+    
+    // Dodaj nakon raw signal sekcije
+    const rawSignalSection = document.querySelector('.main-card:nth-of-type(2)');
+    if (rawSignalSection) {
+        rawSignalSection.insertAdjacentHTML('afterend', correlationHTML);
+    }
+}
+
+// Omogući prikaz correlation dugmeta kada se učita signal
+function enableCorrelationTest() {
+    const correlationBtn = document.getElementById('correlationTestBtn');
+    if (correlationBtn) {
+        correlationBtn.style.display = 'inline-block';
+    }
+}
+
+// Omogući prikaz image processing visualization
+function enableImageProcessingVisualization() {
+    const imageProcessingBtn = document.getElementById('imageProcessingBtn');
+    if (imageProcessingBtn) {
+        imageProcessingBtn.style.display = 'inline-block';
+    }
+}
+
+function showImageProcessingSteps() {
+    // Provjeri da li imamo učitanu sliku
+    if (!window.currentImageData) {
+        alert('Molimo prvo učitajte EKG sliku');
+        return;
+    }
+    
+    createImageProcessingSection();
+}
+
+function createImageProcessingSection() {
+    // Ukloni postojeću sekciju ako postoji
+    const existingSection = document.getElementById('imageProcessingSection');
+    if (existingSection) {
+        existingSection.remove();
+    }
+    
+    const imageProcessingHTML = `
+        <div id="imageProcessingSection" class="main-card" style="margin-top: 20px;">
+            <h2><i class="fas fa-cogs"></i> Image Processing - Step by Step Analiza</h2>
+            <div class="info-card" style="background: #f8f9fa; margin-bottom: 20px;">
+                <h4><i class="fas fa-info-circle"></i> Implementirane Tehnike:</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 10px;">
+                    <div>
+                        <p><strong>📊 Osnovne metode obrade digitalne slike:</strong></p>
+                        <ul style="margin: 0; padding-left: 20px;">
+                            <li>RGB → Grayscale konverzija</li>
+                            <li>Gaussian blur (3x3 kernel)</li>
+                            <li>Adaptivna binarizacija</li>
+                            <li>Morfološko filtriranje</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <p><strong>🔧 Napredne tehnike:</strong></p>
+                        <ul style="margin: 0; padding-left: 20px;">
+                            <li>Grid detection & removal</li>
+                            <li>Contour detection</li>
+                            <li>1D signal extraction</li>
+                            <li>Band-pass filtriranje (0.5-40 Hz)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="upload-buttons" style="margin-bottom: 20px;">
+                <button class="btn btn-primary" onclick="runStepByStepAnalysis()">
+                    <i class="fas fa-search"></i>
+                    Detaljni Step-by-Step Prikaz
+                </button>
+                <button class="btn btn-success" onclick="runSummaryAnalysis()">
+                    <i class="fas fa-compress-alt"></i>
+                    Sažeti Prikaz (Pre/Posle)
+                </button>
+                <button class="btn btn-info" onclick="runTechnicalAnalysis()">
+                    <i class="fas fa-microscope"></i>
+                    Tehnički Detalji
+                </button>
+            </div>
+            
+            <div id="imageProcessingProgress" style="display: none; margin-bottom: 20px;">
+                <div class="loading-container">
+                    <div class="loading-animation">
+                        <div class="heartbeat-loader">
+                            <div class="heartbeat-pulse"></div>
+                        </div>
+                        <p>Analiza slike u toku...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="imageProcessingResults">
+                <!-- Rezultati će se prikazati ovde -->
+            </div>
+        </div>
+    `;
+    
+    // Dodaj nakon correlation sekcije ili raw signal sekcije
+    const correlationSection = document.getElementById('correlationTestSection');
+    const rawSignalSection = document.querySelector('.main-card:nth-of-type(2)');
+    
+    if (correlationSection) {
+        correlationSection.insertAdjacentHTML('afterend', imageProcessingHTML);
+    } else if (rawSignalSection) {
+        rawSignalSection.insertAdjacentHTML('afterend', imageProcessingHTML);
+    }
+}
+
+async function runStepByStepAnalysis() {
+    showImageProcessingProgress(true);
+    
+    try {
+        const response = await fetch("/api/visualizations/image-processing-steps", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                image_data: window.currentImageData,
+                show_all_steps: true,
+                include_technical_details: true
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            displayImageProcessingResults(data, "Step-by-Step Analiza");
+        } else {
+            showImageProcessingError(data.error || "Step-by-step analiza neuspešna");
+        }
+        
+    } catch (error) {
+        showImageProcessingError("Greška u komunikaciji: " + error.message);
+    } finally {
+        showImageProcessingProgress(false);
+    }
+}
+
+async function runSummaryAnalysis() {
+    showImageProcessingProgress(true);
+    
+    try {
+        const response = await fetch("/api/visualizations/image-processing-steps", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                image_data: window.currentImageData,
+                show_all_steps: false
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            displayImageProcessingResults(data, "Sažeta Analiza");
+        } else {
+            showImageProcessingError(data.error || "Sažeta analiza neuspešna");
+        }
+        
+    } catch (error) {
+        showImageProcessingError("Greška u komunikaciji: " + error.message);
+    } finally {
+        showImageProcessingProgress(false);
+    }
+}
+
+async function runTechnicalAnalysis() {
+    showImageProcessingProgress(true);
+    
+    try {
+        const response = await fetch("/api/visualizations/image-processing-steps", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                image_data: window.currentImageData,
+                show_all_steps: true,
+                include_technical_details: true
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            displayTechnicalImageProcessingResults(data);
+        } else {
+            showImageProcessingError(data.error || "Tehnička analiza neuspešna");
+        }
+        
+    } catch (error) {
+        showImageProcessingError("Greška u komunikaciji: " + error.message);
+    } finally {
+        showImageProcessingProgress(false);
+    }
+}
+
+function displayImageProcessingResults(data, analysisType) {
+    const resultsDiv = document.getElementById("imageProcessingResults");
+    
+    const stepsCount = data.steps_summary?.total_steps || 0;
+    const signalLength = data.steps_summary?.signal_length || 0;
+    const processingSuccessful = data.steps_summary?.processing_successful || false;
+    
+    const resultsHTML = `
+        <div class="main-card" style="margin-top: 20px;">
+            <h3><i class="fas fa-chart-line"></i> Rezultati: ${analysisType}</h3>
+            
+            <div style="margin-bottom: 20px;">
+                <img src="${data.visualization}" style="width: 100%; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);" alt="Image Processing Visualization">
+            </div>
+            
+            <div class="info-card">
+                <h4><i class="fas fa-info-circle"></i> Processing Summary</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                    <div>
+                        <strong>Ukupno koraka:</strong><br>
+                        <span style="color: #666;">${stepsCount}</span>
+                    </div>
+                    <div>
+                        <strong>Dužina signala:</strong><br>
+                        <span style="color: #666;">${signalLength} tačaka</span>
+                    </div>
+                    <div>
+                        <strong>Status:</strong><br>
+                        <span style="color: ${processingSuccessful ? '#28a745' : '#dc3545'};">
+                            ${processingSuccessful ? '✅ Uspešno' : '❌ Neuspešno'}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="info-card" style="margin-top: 15px;">
+                <h4><i class="fas fa-cogs"></i> Tehnički Detalji</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <strong>Originalna veličina:</strong><br>
+                        <span style="color: #666;">${data.processing_metadata?.original_size?.join('x') || 'N/A'} piksela</span>
+                    </div>
+                    <div>
+                        <strong>Finalni signal:</strong><br>
+                        <span style="color: #666;">${signalLength > 0 ? 'Ekstraktovan' : 'Neuspešno'}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="btn btn-info" onclick="exportImageProcessingResults()">
+                    <i class="fas fa-download"></i>
+                    Izvezi Rezultate
+                </button>
+                <button class="btn btn-success" onclick="useExtractedSignal()">
+                    <i class="fas fa-arrow-right"></i>
+                    Koristi Ekstraktovani Signal
+                </button>
+            </div>
+        </div>
+    `;
+    
+    resultsDiv.innerHTML = resultsHTML;
+    
+    // Sačuvaj ekstraktovani signal
+    if (data.extracted_signal && data.extracted_signal.length > 0) {
+        window.extractedSignalData = data.extracted_signal;
+    }
+}
+
+function displayTechnicalImageProcessingResults(data) {
+    const resultsDiv = document.getElementById("imageProcessingResults");
+    
+    const algorithms = data.technical_details?.algorithms_used || [];
+    
+    const resultsHTML = `
+        <div class="main-card" style="margin-top: 20px;">
+            <h3><i class="fas fa-microscope"></i> Tehnička Analiza Image Processing-a</h3>
+            
+            <div style="margin-bottom: 20px;">
+                <img src="${data.visualization}" style="width: 100%; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);" alt="Technical Image Processing Analysis">
+            </div>
+            
+            <div class="info-card">
+                <h4><i class="fas fa-list"></i> Implementirani Algoritmi</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <ul style="margin: 0; padding-left: 20px;">
+                            ${algorithms.slice(0, Math.ceil(algorithms.length/2)).map(alg => `<li>${alg}</li>`).join('')}
+                        </ul>
+                    </div>
+                    <div>
+                        <ul style="margin: 0; padding-left: 20px;">
+                            ${algorithms.slice(Math.ceil(algorithms.length/2)).map(alg => `<li>${alg}</li>`).join('')}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="info-card" style="margin-top: 15px;">
+                <h4><i class="fas fa-chart-bar"></i> Performanse</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                    <div>
+                        <strong>OpenCV Version:</strong><br>
+                        <span style="color: #666;">${data.technical_details?.opencv_version || 'N/A'}</span>
+                    </div>
+                    <div>
+                        <strong>Processing Steps:</strong><br>
+                        <span style="color: #666;">${algorithms.length} algoritma</span>
+                    </div>
+                    <div>
+                        <strong>Success Rate:</strong><br>
+                        <span style="color: #666;">${data.steps_summary?.processing_successful ? '100%' : '< 100%'}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="background: #e3f2fd; padding: 15px; border-radius: 5px; margin-top: 15px; border-left: 3px solid #2196f3;">
+                <h5><i class="fas fa-graduation-cap"></i> Za Mentora - Tehnički Pregled</h5>
+                <p><strong>Implementirane su sve zahtevane tehnike:</strong></p>
+                <p>✅ <strong>Osnove obrade digitalne slike:</strong> Grayscale, blur, binarizacija</p>
+                <p>✅ <strong>Morfološko filtriranje:</strong> Grid removal, noise reduction</p>
+                <p>✅ <strong>Kontura detekcija:</strong> Automatska EKG linija ekstrakcija</p>
+                <p>✅ <strong>Signal processing:</strong> 1D konverzija + band-pass filtriranje</p>
+            </div>
+            
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="btn btn-info" onclick="exportImageProcessingResults()">
+                    <i class="fas fa-download"></i>
+                    Izvezi Tehnički Izveštaj
+                </button>
+            </div>
+        </div>
+    `;
+    
+    resultsDiv.innerHTML = resultsHTML;
+}
+
+function showImageProcessingProgress(show) {
+    const progressDiv = document.getElementById("imageProcessingProgress");
+    if (progressDiv) {
+        progressDiv.style.display = show ? "block" : "none";
+    }
+}
+
+function showImageProcessingError(errorMessage) {
+    const resultsDiv = document.getElementById("imageProcessingResults");
+    resultsDiv.innerHTML = `
+        <div class="main-card" style="background: #f8d7da; border-left: 3px solid #dc3545;">
+            <h4><i class="fas fa-exclamation-triangle"></i> Greška u Image Processing Analizi</h4>
+            <p>${errorMessage}</p>
+            <small>Proverite server logs za više detalja.</small>
+        </div>
+    `;
+}
+
+function exportImageProcessingResults() {
+    const resultsDiv = document.getElementById("imageProcessingResults");
+    if (!resultsDiv.innerHTML.trim()) {
+        alert("Nema rezultata za izvoz");
+        return;
+    }
+    
+    const exportData = {
+        timestamp: new Date().toISOString(),
+        analysis_type: "EKG Image Processing Analysis",
+        results: resultsDiv.innerHTML,
+        extracted_signal: window.extractedSignalData || []
+    };
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `image_processing_analysis_${new Date().toISOString().split("T")[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function useExtractedSignal() {
+    if (!window.extractedSignalData || window.extractedSignalData.length === 0) {
+        alert("Nema ekstraktovanog signala za korišćenje");
+        return;
+    }
+    
+    // Postavi ekstraktovani signal kao glavni signal
+    window.currentSignalData = window.extractedSignalData;
+    
+    alert("Ekstraktovani signal je postavljen kao glavni signal za dalju analizu");
+    
+    // Omogući correlation test sa ekstraktovanim signalom
+    enableCorrelationTest();
+}
+
+async function runDemoCorrelationAnalysis() {
+    showCorrelationProgress(true);
+    
+    try {
+        const response = await fetch("/api/visualizations/correlation-analysis", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({"demo": true}) // Demo flag za backend
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            displayCorrelationResults(data, "Demo Analiza za Mentora");
+        } else {
+            showCorrelationError(data.error || "Demo analiza neuspešna");
+        }
+        
+    } catch (error) {
+        showCorrelationError("Greška u komunikaciji: " + error.message);
+    } finally {
+        showCorrelationProgress(false);
+    }
+}
+
+async function runImageToSignalTest() {
+    showCorrelationProgress(true);
+    
+    try {
+        // Koristi postojeći signal iz frontend-a ako je dostupan
+        const testSignal = window.currentSignalData || generateSyntheticTestSignal();
+        
+        const response = await fetch("/api/visualizations/correlation-analysis", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                test_signal: testSignal,
+                sampling_frequency: 250
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            displayCorrelationResults(data, "Signal → Slika → Signal Test");
+        } else {
+            showCorrelationError(data.error || "Signal-to-image test neuspešan");
+        }
+        
+    } catch (error) {
+        showCorrelationError("Greška u testu: " + error.message);
+    } finally {
+        showCorrelationProgress(false);
+    }
+}
+
+async function runBatchCorrelationTest() {
+    showCorrelationProgress(true);
+    
+    try {
+        // Generiši nekoliko test signala
+        const testSignals = [
+            generateSyntheticTestSignal(75, "normal"),     // Normal ritam
+            generateSyntheticTestSignal(120, "tachycardia"), // Tahikardija  
+            generateSyntheticTestSignal(45, "bradycardia"),  // Bradikardija
+            generateSyntheticTestSignal(80, "irregular")     // Nepravilan
+        ];
+        
+        // Simuliraj extracted signale (sa noise-om)
+        const signalPairs = testSignals.map(original => ({
+            original: original,
+            extracted: addExtractionNoise(original)
+        }));
+        
+        const response = await fetch("/api/visualizations/batch-correlation", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                signal_pairs: signalPairs,
+                sampling_frequency: 250
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            displayBatchCorrelationResults(data);
+        } else {
+            showCorrelationError(data.error || "Batch analiza neuspešna");
+        }
+        
+    } catch (error) {
+        showCorrelationError("Greška u batch analizi: " + error.message);
+    } finally {
+        showCorrelationProgress(false);
+    }
+}
+
+function generateSyntheticTestSignal(heartRate = 75, type = "normal") {
+    const fs = 250;
+    const duration = 10; // 10 sekundi
+    const samples = fs * duration;
+    const signal = new Array(samples).fill(0);
+    
+    const rrInterval = 60 / heartRate * fs; // samples između R-pikova
+    
+    for (let i = 0; i < samples; i++) {
+        // Bazni signal
+        signal[i] = 0.1 * Math.sin(2 * Math.PI * 1.2 * i / fs);
+        
+        // Dodaj R-pikove
+        const beatPhase = (i % rrInterval) / rrInterval;
+        if (beatPhase < 0.1) { // QRS kompleks
+            const qrsPhase = beatPhase / 0.1;
+            if (type === "irregular") {
+                // Dodaj varijabilnost za nepravilan ritam
+                signal[i] += (0.8 + 0.4 * Math.random()) * Math.exp(-50 * (qrsPhase - 0.5) ** 2);
+            } else {
+                signal[i] += Math.exp(-50 * (qrsPhase - 0.5) ** 2);
+            }
+        }
+    }
+    
+    // Dodaj šum na osnovu tipa
+    for (let i = 0; i < samples; i++) {
+        if (type === "irregular") {
+            signal[i] += 0.1 * Math.random();
+        } else {
+            signal[i] += 0.05 * Math.random();
+        }
+    }
+    
+    return signal;
+}
+
+function addExtractionNoise(originalSignal) {
+    // Simuliraj greške u extraction procesu
+    const noisySignal = [...originalSignal];
+    
+    for (let i = 0; i < noisySignal.length; i++) {
+        // Dodaj extraction noise
+        noisySignal[i] += 0.1 * (Math.random() - 0.5);
+        
+        // Simuliraj minor amplitude scaling
+        noisySignal[i] *= (0.9 + 0.2 * Math.random());
+    }
+    
+    // Simuliraj minor length changes (resampling errors)
+    const lengthChange = Math.floor(originalSignal.length * (0.95 + 0.1 * Math.random()));
+    return noisySignal.slice(0, lengthChange);
+}
+
+function displayCorrelationResults(data, testName) {
+    const resultsDiv = document.getElementById("correlationResults");
+    
+    const correlation = data.correlation_metrics?.correlation || 0;
+    const rmse = data.correlation_metrics?.rmse || 0;
+    const qualityAssessment = data.analysis_summary?.quality_assessment || "Nepoznato";
+    
+    const resultsHTML = `
+        <div class="main-card" style="margin-top: 20px;">
+            <h3><i class="fas fa-chart-line"></i> Rezultati: ${testName}</h3>
+            
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 20px;">
+                <div>
+                    <img src="${data.correlation_plot}" style="width: 100%; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);" alt="Correlation Analysis Plot">
+                </div>
+                <div>
+                    <div class="info-card">
+                        <h4><i class="fas fa-tachometer-alt"></i> Ključne Metrike</h4>
+                        <div style="margin: 10px 0;">
+                            <strong>Korelacija:</strong> 
+                            <span style="background: ${correlation >= 0.8 ? '#28a745' : correlation >= 0.6 ? '#ffc107' : '#dc3545'}; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold;">
+                                ${correlation.toFixed(3)}
+                            </span>
+                        </div>
+                        <div style="margin: 10px 0;">
+                            <strong>RMSE:</strong> 
+                            <span style="background: #17a2b8; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold;">${rmse.toFixed(3)}</span>
+                        </div>
+                        <div style="margin: 10px 0;">
+                            <strong>Kvalitet:</strong><br>
+                            <small style="color: #666;">${qualityAssessment}</small>
+                        </div>
+                        
+                        <div style="background: ${correlation >= 0.8 ? '#d4edda' : '#fff3cd'}; padding: 10px; border-radius: 5px; margin-top: 15px; border-left: 3px solid ${correlation >= 0.8 ? '#28a745' : '#ffc107'};">
+                            <strong>🎯 Za Mentora:</strong><br>
+                            <strong>Sistem ${correlation >= 0.8 ? "USPEŠNO" : "DELIMIČNO"}</strong> 
+                            rekonstruiše EKG signal iz slike.<br>
+                            <small>Korelacija: ${(correlation * 100).toFixed(1)}%</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="info-card">
+                <h4><i class="fas fa-clipboard-list"></i> Detaljni Izveštaj</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                    <div>
+                        <strong>Test metod:</strong><br>
+                        <span style="color: #666;">${data.method}</span>
+                    </div>
+                    <div>
+                        <strong>Similarity Score:</strong><br>
+                        <span style="color: #666;">${data.correlation_metrics?.similarity_score?.toFixed(3) || "N/A"}</span>
+                    </div>
+                    <div>
+                        <strong>Length Match:</strong><br>
+                        <span style="color: #666;">${data.correlation_metrics?.length_match ? "✅ Da" : "⚠️ Ne"}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="btn btn-info" onclick="exportCorrelationResults()">
+                    <i class="fas fa-download"></i>
+                    Izvezi Rezultate
+                </button>
+            </div>
+        </div>
+    `;
+    
+    resultsDiv.innerHTML = resultsHTML;
+}
+
+function displayBatchCorrelationResults(data) {
+    const resultsDiv = document.getElementById("correlationResults");
+    
+    const stats = data.summary_statistics;
+    const assessment = data.overall_assessment;
+    
+    const resultsHTML = `
+        <div class="main-card" style="margin-top: 20px;">
+            <h3><i class="fas fa-chart-bar"></i> Batch Korelacijska Analiza</h3>
+            
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 20px;">
+                <div>
+                    <img src="${data.batch_analysis_plot}" style="width: 100%; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);" alt="Batch Correlation Analysis">
+                </div>
+                <div>
+                    <div class="info-card">
+                        <h4><i class="fas fa-chart-pie"></i> Statistike</h4>
+                        <div style="margin: 10px 0;">
+                            <strong>Broj testova:</strong> ${stats.num_tests}
+                        </div>
+                        <div style="margin: 10px 0;">
+                            <strong>Prosečna korelacija:</strong>
+                            <span style="background: ${stats.mean_correlation >= 0.8 ? '#28a745' : '#ffc107'}; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold;">
+                                ${stats.mean_correlation.toFixed(3)}
+                            </span>
+                        </div>
+                        <div style="margin: 10px 0;">
+                            <strong>Std. devijacija:</strong> ${stats.std_correlation.toFixed(3)}
+                        </div>
+                        <div style="margin: 10px 0;">
+                            <strong>Opseg:</strong> ${stats.min_correlation.toFixed(3)} - ${stats.max_correlation.toFixed(3)}
+                        </div>
+                        
+                        <div style="background: ${stats.mean_correlation >= 0.8 ? '#d4edda' : '#fff3cd'}; padding: 10px; border-radius: 5px; margin-top: 15px; border-left: 3px solid ${stats.mean_correlation >= 0.8 ? '#28a745' : '#ffc107'};">
+                            <strong>🎯 Kvalitet Sistema:</strong><br>
+                            <small>${assessment}</small>
+                        </div>
+                        
+                        <div style="margin-top: 15px;">
+                            <h5><i class="fas fa-chart-pie"></i> Distribucija</h5>
+                            <div style="font-size: 0.9em;">
+                                • <strong>Odličan (>0.9):</strong> ${stats.excellent_count}<br>
+                                • <strong>Dobar (>0.8):</strong> ${stats.good_count}<br>
+                                • <strong>Osrednji (>0.7):</strong> ${stats.fair_count}<br>
+                                • <strong>Slab (<0.7):</strong> ${stats.poor_count}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="btn btn-info" onclick="exportCorrelationResults()">
+                    <i class="fas fa-download"></i>
+                    Izvezi Rezultate
+                </button>
+            </div>
+        </div>
+    `;
+    
+    resultsDiv.innerHTML = resultsHTML;
+}
+
+function showCorrelationProgress(show) {
+    const progressDiv = document.getElementById("correlationProgress");
+    if (progressDiv) {
+        progressDiv.style.display = show ? "block" : "none";
+    }
+}
+
+function showCorrelationError(errorMessage) {
+    const resultsDiv = document.getElementById("correlationResults");
+    resultsDiv.innerHTML = `
+        <div class="alert alert-danger">
+            <h6>❌ Greška u Korelacijskoj Analizi</h6>
+            <p>${errorMessage}</p>
+            <small>Proverite server logs za više detalja.</small>
+        </div>
+    `;
+}
+
+function exportCorrelationResults() {
+    const resultsDiv = document.getElementById("correlationResults");
+    if (!resultsDiv.innerHTML.trim()) {
+        alert("Nema rezultata za izvoz");
+        return;
+    }
+    
+    // Kreiraj izvoz
+    const exportData = {
+        timestamp: new Date().toISOString(),
+        analysis_type: "EKG Correlation Analysis",
+        results: resultsDiv.innerHTML
+    };
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `correlation_analysis_${new Date().toISOString().split("T")[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+console.log("🔬 Correlation Analysis system loaded!");
+

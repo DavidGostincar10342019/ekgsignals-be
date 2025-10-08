@@ -71,6 +71,15 @@ from .analysis.advanced_cardiology_analysis import advanced_ekg_analysis
 from .analysis.simple_thesis_viz import create_simple_thesis_visualizations
 from .analysis.signal_to_image import create_ekg_image_from_signal, test_signal_to_image_conversion
 from .analysis.educational_ekg_image import create_educational_ekg_image
+from .analysis.correlation_visualization import (
+    create_correlation_analysis_plot, 
+    generate_correlation_demo_for_mentor,
+    create_batch_correlation_report
+)
+from .analysis.image_processing_visualization import (
+    visualize_complete_image_processing,
+    create_comparison_visualization
+)
 from .analysis.intelligent_signal_segmentation import find_critical_segments
 from datetime import datetime
 
@@ -1559,3 +1568,120 @@ def _generate_recommendations(snr_analysis, fft_analysis, hr_hrv_analysis):
         recommendations.append("Signal je u normalnim parametrima")
     
     return recommendations
+
+
+# ============================================================================
+# 🔬 KORELACIJSKA ANALIZA ENDPOINTS - Za demonstraciju mentoru!
+# ============================================================================
+
+
+
+def _assess_signal_quality(correlation):
+    """Helper funkcija za ocenu kvaliteta signala"""
+    if correlation >= 0.95:
+        return "ODLIČAN - Sistem spreman za production"
+    elif correlation >= 0.90:
+        return "VRLO DOBAR - Minimalne optimizacije potrebne"
+    elif correlation >= 0.80:
+        return "DOBAR - Potrebne optimizacije"
+    elif correlation >= 0.70:
+        return "OSREDNJI - Značajne optimizacije potrebne"
+    elif correlation >= 0.60:
+        return "SLAB - Potreban redesign"
+    else:
+        return "NEPRIHVATLJIV - Kritične izmene potrebne"
+
+def _assess_batch_quality(mean_correlation):
+    """Helper funkcija za ocenu batch kvaliteta"""
+    if mean_correlation >= 0.9:
+        return "SISTEMSKI ODLIČAN - Konsistentno visoke performanse"
+    elif mean_correlation >= 0.8:
+        return "SISTEMSKI DOBAR - Stabilne performanse"
+    elif mean_correlation >= 0.7:
+        return "SISTEMSKI OSREDNJI - Varijabilne performanse"
+    else:
+        return "SISTEMSKI PROBLEMATIČAN - Potrebna značajna poboljšanja"
+
+
+@main.route('/api/visualizations/image-processing-comparison', methods=['POST'])
+def image_processing_comparison():
+    """
+    📊 POREĐENJE ORIGINALNOG I EKSTRAKTOVANOG SIGNALA
+    
+    Kombinuje image processing sa signal comparison
+    """
+    try:
+        data = request.json
+        
+        if not data:
+            return jsonify({"error": "JSON data required"}), 400
+        
+        # Method 1: Samo image processing
+        if 'image_data' in data:
+            image_data = data['image_data']
+            
+            # Obradi sliku
+            processing_result = visualize_complete_image_processing(image_data, show_intermediate_steps=False)
+            
+            if not processing_result.get('success', False):
+                return jsonify({"error": processing_result.get('error')}), 500
+            
+            extracted_signal = processing_result['extracted_signal']
+            
+            return jsonify({
+                "success": True,
+                "method": "image_only",
+                "processing_visualization": processing_result['visualization']['image_base64'],
+                "extracted_signal": extracted_signal,
+                "metadata": processing_result['metadata']
+            })
+        
+        # Method 2: Poređenje sa originalnim signalom
+        elif 'image_data' in data and 'original_signal' in data:
+            image_data = data['image_data']
+            original_signal = np.array(data['original_signal'])
+            
+            # Obradi sliku
+            processing_result = visualize_complete_image_processing(image_data, show_intermediate_steps=False)
+            
+            if not processing_result.get('success', False):
+                return jsonify({"error": processing_result.get('error')}), 500
+            
+            extracted_signal = np.array(processing_result['extracted_signal'])
+            
+            # Kreiraj comparison vizualizaciju
+            comparison_viz = create_comparison_visualization(original_signal, extracted_signal)
+            
+            # Kalkuliši korelaciju
+            if len(original_signal) > 0 and len(extracted_signal) > 0:
+                # Resample na istu dužinu
+                min_len = min(len(original_signal), len(extracted_signal))
+                orig_resampled = signal.resample(original_signal, min_len)
+                extr_resampled = signal.resample(extracted_signal, min_len)
+                
+                correlation = np.corrcoef(orig_resampled, extr_resampled)[0, 1]
+                rmse = np.sqrt(np.mean((orig_resampled - extr_resampled)**2))
+            else:
+                correlation = 0
+                rmse = float('inf')
+            
+            return jsonify({
+                "success": True,
+                "method": "image_with_original_comparison",
+                "processing_visualization": processing_result['visualization']['image_base64'],
+                "comparison_visualization": comparison_viz['image_base64'],
+                "extracted_signal": extracted_signal.tolist(),
+                "correlation_metrics": {
+                    "correlation": correlation,
+                    "rmse": rmse,
+                    "similarity_score": correlation * (1 - min(rmse, 1))
+                },
+                "metadata": processing_result['metadata']
+            })
+        
+        else:
+            return jsonify({"error": "image_data required, optional: original_signal"}), 400
+    
+    except Exception as e:
+        return jsonify({"error": f"Image processing comparison failed: {str(e)}"}), 500
+
