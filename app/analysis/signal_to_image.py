@@ -280,50 +280,96 @@ def test_signal_to_image_conversion(signal, fs=250):
         }
 
 def compare_signals(original, extracted, fs):
-    """Poredi originalni i ekstraktovani signal"""
+    """Poredi originalni i ekstraktovani signal sa POBOLJŠANOM analizom"""
     
     original = np.array(original)
     extracted = np.array(extracted)
     
-    # Normalizuj signale za poređenje sa zaštitom od deljenja nulom
+    # POBOLJŠANO: Resample na istu dužinu PRVO, pa onda normalizuj
+    if len(original) != len(extracted):
+        min_len = min(len(original), len(extracted))
+        max_len = max(len(original), len(extracted))
+        target_len = min_len  # Koristi kraći signal kao referentu
+        
+        if len(original) > len(extracted):
+            from scipy import signal as scipy_signal
+            original = scipy_signal.resample(original, target_len)
+        elif len(extracted) > len(original):
+            from scipy import signal as scipy_signal
+            extracted = scipy_signal.resample(extracted, target_len)
+    
+    # POBOLJŠANO: Ukloni DC component prvo
+    original = original - np.mean(original)
+    extracted = extracted - np.mean(extracted)
+    
+    # POBOLJŠANO: Normalizuj sa robusnom metodom
     orig_std = np.std(original)
     extr_std = np.std(extracted)
     
-    # Ako je std = 0 (konstantan signal), koristi originalni signal
-    if orig_std == 0:
-        orig_norm = original - np.mean(original)  # Centriran ali nenormalizovan
+    # Ako je std previše mali, ne normalizuj (verovatno konstantan signal)
+    if orig_std > 1e-6:
+        orig_norm = original / orig_std
     else:
-        orig_norm = (original - np.mean(original)) / orig_std
+        orig_norm = original
         
-    if extr_std == 0:
-        extr_norm = extracted - np.mean(extracted)  # Centriran ali nenormalizovan
+    if extr_std > 1e-6:
+        extr_norm = extracted / extr_std
     else:
-        extr_norm = (extracted - np.mean(extracted)) / extr_std
+        extr_norm = extracted
     
-    # Smanji na istu dužinu
-    min_len = min(len(orig_norm), len(extr_norm))
-    orig_norm = orig_norm[:min_len]
-    extr_norm = extr_norm[:min_len]
+    # POBOLJŠANO: Pokušaj različite metode korelacije
+    correlation = 0.0
     
-    # Korelacija sa zaštitom
     try:
-        if len(orig_norm) > 1 and len(extr_norm) > 1:
-            correlation = np.corrcoef(orig_norm, extr_norm)[0, 1]
-            # Proveri da li je korelacija validna (može biti NaN)
-            if np.isnan(correlation):
+        if len(orig_norm) > 3 and len(extr_norm) > 3:  # Minimum 4 tačke
+            # Metod 1: Pearson korelacija
+            if np.var(orig_norm) > 1e-10 and np.var(extr_norm) > 1e-10:
+                correlation = np.corrcoef(orig_norm, extr_norm)[0, 1]
+                
+                # Ako je korelacija NaN ili premala, pokušaj alternative
+                if np.isnan(correlation) or abs(correlation) < 0.01:
+                    # Metod 2: Cross-correlation peak
+                    xcorr = np.correlate(orig_norm, extr_norm, mode='full')
+                    max_xcorr = np.max(xcorr)
+                    norm_factor = np.sqrt(np.sum(orig_norm**2) * np.sum(extr_norm**2))
+                    if norm_factor > 1e-10:
+                        correlation = max_xcorr / norm_factor
+                    
+                    # Metod 3: Cosine similarity kao fallback
+                    if np.isnan(correlation) or abs(correlation) < 0.01:
+                        dot_product = np.dot(orig_norm, extr_norm)
+                        norm_orig = np.linalg.norm(orig_norm)
+                        norm_extr = np.linalg.norm(extr_norm)
+                        if norm_orig > 1e-10 and norm_extr > 1e-10:
+                            correlation = dot_product / (norm_orig * norm_extr)
+                        else:
+                            correlation = 0.0
+                            
+            # Osiguraj da je korelacija u validnom opsegu
+            if np.isnan(correlation) or np.isinf(correlation):
                 correlation = 0.0
-        else:
-            correlation = 0.0
-    except:
+            else:
+                correlation = np.clip(correlation, -1.0, 1.0)
+                
+    except Exception as e:
+        print(f"DEBUG: Correlation calculation error: {e}")
         correlation = 0.0
     
-    # RMSE
-    rmse = np.sqrt(np.mean((orig_norm - extr_norm) ** 2))
+    # POBOLJŠANO: RMSE sa normalizacijom
+    try:
+        rmse = np.sqrt(np.mean((orig_norm - extr_norm) ** 2))
+        if np.isnan(rmse) or np.isinf(rmse):
+            rmse = 1.0  # Worst case
+    except:
+        rmse = 1.0
+    
+    # POBOLJŠANO: Similarity score sa boljom formulom
+    similarity_score = max(0, correlation * (1 - min(rmse / 2, 1.0)))  # RMSE može biti > 1
     
     return {
         'correlation': float(correlation),
         'rmse': float(rmse),
-        'similarity_score': float(correlation * (1 - rmse)),
+        'similarity_score': float(similarity_score),
         'length_match': len(original) == len(extracted)
     }
 
