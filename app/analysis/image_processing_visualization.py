@@ -120,53 +120,83 @@ def process_image_step_by_step(original_image):
     results["step_7_cleaned"] = cleaned
     results["metadata"]["cleanup_info"] = "Morfološko otvaranje (3x3 ellipse kernel)"
     
-    # KORAK 8: Detekcija konturen
+    # KORAK 8: Detekcija konturen - ROBUSNIJI PRISTUP
     contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
-    # Filtriraj konture (samo najveće)
+    # Nacrtaj sve konture za debug
+    all_contours_image = np.zeros_like(cleaned)
+    if contours:
+        cv2.drawContours(all_contours_image, contours, -1, 255, 1)
+    results["step_8_all_contours"] = all_contours_image
+    
+    # BACKUP metod: Ako nema dovoljno konturen, koristi edge detection
+    if not contours or len(contours) < 3:
+        # Fallback: Canny edge detection
+        edges = cv2.Canny(cleaned, 50, 150)
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        results["metadata"]["backup_method"] = "Canny edge detection korišćen kao fallback"
+    
+    # Pronađi glavnu konturu (više tolerantan pristup)
+    main_contour = None
     if contours:
         # Sortiraj konture po area
         contours = sorted(contours, key=cv2.contourArea, reverse=True)
         
-        # Uzmi najveću konturu koja izgleda kao EKG signal
-        main_contour = None
-        for contour in contours:
+        # Probaj različite kriterijume za glavnu konturu
+        for contour in contours[:5]:  # Proveris top 5 kontura
             area = cv2.contourArea(contour)
-            if area > 1000:  # Minimalna area za EKG signal
-                # Provjeri aspect ratio
+            if area > 100:  # Smanjena minimalna area
                 x, y, w, h = cv2.boundingRect(contour)
-                aspect_ratio = w / h
-                if aspect_ratio > 2:  # EKG signali su duži nego viši
+                aspect_ratio = w / h if h > 0 else 0
+                
+                # Relaksirani kriterijumi
+                if aspect_ratio > 1.5 or area > 500:  # Ili široka kontura ili velika area
                     main_contour = contour
+                    results["metadata"]["contour_selection"] = f"Kontura sa area={area:.0f}, aspect_ratio={aspect_ratio:.2f}"
                     break
         
-        if main_contour is not None:
-            # Nacrtaj glavni kontur
-            contour_image = np.zeros_like(cleaned)
-            cv2.drawContours(contour_image, [main_contour], -1, 255, 2)
-            results["step_8_main_contour"] = contour_image
-            results["metadata"]["contour_info"] = f"Glavna kontura (area: {cv2.contourArea(main_contour):.0f})"
-            
-            # KORAK 9: Ekstrakcija 1D signala
-            signal_1d = extract_1d_signal_from_contour(main_contour, gray_image.shape)
-            results["step_9_signal_1d"] = signal_1d
-            results["final_signal"] = signal_1d
-            results["metadata"]["signal_info"] = f"1D signal sa {len(signal_1d)} tačaka"
-            
-            # KORAK 10: Filtriranje signala
-            if len(signal_1d) > 100:  # Minimum za filtriranje
+        # Ako JOŠ UVEK nema konture, uzmi najveću
+        if main_contour is None and contours:
+            main_contour = contours[0]
+            results["metadata"]["contour_selection"] = "Uzeta najveća dostupna kontura"
+    
+    if main_contour is not None:
+        # Nacrtaj glavni kontur
+        contour_image = np.zeros_like(cleaned)
+        cv2.drawContours(contour_image, [main_contour], -1, 255, 2)
+        results["step_8_main_contour"] = contour_image
+        results["metadata"]["contour_info"] = f"Glavna kontura (area: {cv2.contourArea(main_contour):.0f})"
+        
+        # KORAK 9: Ekstrakcija 1D signala
+        signal_1d = extract_1d_signal_from_contour(main_contour, gray_image.shape)
+        
+        # BACKUP: Ako kontura ne da dobar signal, koristi row-wise approach
+        if len(signal_1d) < 50:
+            signal_1d = extract_signal_row_wise(cleaned)
+            results["metadata"]["signal_extraction"] = "Row-wise extraction korišćen kao backup"
+        
+        results["step_9_signal_1d"] = signal_1d
+        results["final_signal"] = signal_1d
+        results["metadata"]["signal_info"] = f"1D signal sa {len(signal_1d)} tačaka"
+        
+        # KORAK 10: Filtriranje signala
+        if len(signal_1d) > 50:  # Smanjen minimum za filtriranje
+            try:
                 filtered_signal = filter_ekg_signal(signal_1d)
                 results["step_10_filtered"] = filtered_signal
                 results["final_signal"] = filtered_signal
                 results["metadata"]["filter_info"] = "Band-pass filter (0.5-40 Hz)"
-            else:
+            except:
                 results["final_signal"] = signal_1d
+                results["metadata"]["filter_info"] = "Filtriranje preskočeno zbog greške"
         else:
-            results["error"] = "Nije pronađena glavna EKG kontura"
-            results["final_signal"] = []
+            results["final_signal"] = signal_1d
     else:
-        results["error"] = "Nisu pronađene konture"
-        results["final_signal"] = []
+        # POSLEDNJI BACKUP: Row-wise extraction iz originalne binarne slike
+        backup_signal = extract_signal_row_wise(binary)
+        results["final_signal"] = backup_signal
+        results["metadata"]["backup_extraction"] = f"Row-wise backup: {len(backup_signal)} tačaka"
+        results["step_9_signal_1d"] = backup_signal
     
     return results
 
@@ -210,6 +240,40 @@ def extract_1d_signal_from_contour(contour, image_shape):
         if np.std(signal_array) > 0:
             signal_array = signal_array / np.std(signal_array)
         
+        return signal_array.tolist()
+    else:
+        return []
+
+def extract_signal_row_wise(binary_image):
+    """
+    BACKUP metod: Ekstraktuje signal row-by-row iz binarne slike
+    """
+    height, width = binary_image.shape
+    signal_points = []
+    
+    for x in range(width):
+        # Pronađi sve bele piksele u ovom stupcu
+        white_pixels = np.where(binary_image[:, x] == 255)[0]
+        
+        if len(white_pixels) > 0:
+            # Uzmi srednju vrednost
+            avg_y = np.mean(white_pixels)
+            # Invertuј y koordinatu
+            inverted_y = height - avg_y
+            signal_points.append(inverted_y)
+        else:
+            # Interpoliraj ako nema piksela
+            if signal_points:
+                signal_points.append(signal_points[-1])
+            else:
+                signal_points.append(height / 2)
+    
+    # Normalizuj signal
+    if len(signal_points) > 10:
+        signal_array = np.array(signal_points)
+        signal_array = signal_array - np.mean(signal_array)
+        if np.std(signal_array) > 0:
+            signal_array = signal_array / np.std(signal_array)
         return signal_array.tolist()
     else:
         return []
