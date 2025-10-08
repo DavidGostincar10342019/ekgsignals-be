@@ -4498,37 +4498,83 @@ async function runBatchCorrelationTest() {
     showCorrelationProgress(true);
     
     try {
+        // PROVERИ DA LI POSTOJI TRENUTNA SLIKA
+        if (!window.currentImageData && !window.currentAnalysisResults) {
+            alert('Molimo prvo analizirajte sliku ili uvezite signal pre batch testa.');
+            hideCorrelationProgress();
+            return;
+        }
+        
         // STABILIZUJ RANDOM SEED ZA KONZISTENTNOST
-        // Jednostavna seedrandom implementacija
         let seed = 12345;
         Math.random = function() {
             seed = (seed * 9301 + 49297) % 233280;
             return seed / 233280;
         };
         
-        // Generiši nekoliko test signala
-        const testSignals = [
-            generateSyntheticTestSignal(75, "normal"),     // Normal ritam
-            generateSyntheticTestSignal(120, "tachycardia"), // Tahikardija  
-            generateSyntheticTestSignal(45, "bradycardia"),  // Bradikardija
-            generateSyntheticTestSignal(80, "irregular")     // Nepravilan
-        ];
+        let signalPairs = [];
         
-        // Simuliraj extracted signale (sa noise-om)
-        const signalPairs = testSignals.map(original => ({
-            original: original,
-            extracted: addExtractionNoise(original)
-        }));
+        if (window.currentAnalysisResults && window.currentAnalysisResults.processed_signal) {
+            // KORISTI STVARNI SIGNAL IZ ANALIZE SLIKE
+            const originalSignal = window.currentAnalysisResults.processed_signal;
+            console.log('📊 Koristim STVARNI signal iz analize slike, dužina:', originalSignal.length);
+            
+            // Generiši 4 različite "extracted" verzije istog signala sa različitim noise parametrima
+            signalPairs = [
+                {
+                    original: originalSignal,
+                    extracted: addImageExtractionNoise(originalSignal, 'good_quality'),
+                    label: 'Dobra kvaliteta slike'
+                },
+                {
+                    original: originalSignal,
+                    extracted: addImageExtractionNoise(originalSignal, 'medium_quality'),
+                    label: 'Srednja kvaliteta slike'
+                },
+                {
+                    original: originalSignal,
+                    extracted: addImageExtractionNoise(originalSignal, 'poor_quality'),
+                    label: 'Loša kvaliteta slike'
+                },
+                {
+                    original: originalSignal,
+                    extracted: addImageExtractionNoise(originalSignal, 'very_poor_quality'),
+                    label: 'Vrlo loša kvaliteta slike'
+                }
+            ];
+        } else {
+            // FALLBACK: Generiši test signale ako nema analize
+            console.log('⚠️ Nema analiziranog signala, koristim sintetičke testove');
+            const testSignals = [
+                generateSyntheticTestSignal(75, "normal"),
+                generateSyntheticTestSignal(120, "tachycardia"), 
+                generateSyntheticTestSignal(45, "bradycardia"),
+                generateSyntheticTestSignal(80, "irregular")
+            ];
+            
+            signalPairs = testSignals.map(original => ({
+                original: original,
+                extracted: addExtractionNoise(original)
+            }));
+        }
+        
+        // Check if we have a current image to analyze
+        let requestBody = { sampling_frequency: 250 };
+        
+        if (window.currentImageData) {
+            // Use current uploaded image
+            requestBody.image_data = window.currentImageData;
+            console.log("🖼️ Using uploaded image for batch correlation");
+        } else {
+            console.log("📋 No uploaded image, using test images");
+        }
         
         const response = await fetch("/api/visualizations/batch-correlation", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({
-                signal_pairs: signalPairs,
-                sampling_frequency: 250
-            })
+            body: JSON.stringify(requestBody)
         });
         
         const data = await response.json();
@@ -4599,6 +4645,75 @@ function addExtractionNoise(originalSignal) {
     const lengthFactor = 0.98 + 0.04 * Math.random();  // 98-102% umesto 95-105%
     const lengthChange = Math.floor(originalSignal.length * lengthFactor);
     return noisySignal.slice(0, lengthChange);
+}
+
+// NOVA FUNKCIJA - Simulira različite kvalitete image extraction
+function addImageExtractionNoise(originalSignal, qualityLevel) {
+    const noisySignal = [...originalSignal];
+    
+    // Definiši parametre noise-a na osnovu kvaliteta slike
+    let noiseLevel, scaleVariation, lengthVariation, missingPoints;
+    
+    switch(qualityLevel) {
+        case 'good_quality':
+            noiseLevel = 0.02;        // ±1% noise
+            scaleVariation = 0.05;    // ±2.5% scaling
+            lengthVariation = 0.01;   // ±0.5% length
+            missingPoints = 0;        // Nema missing points
+            break;
+        case 'medium_quality':
+            noiseLevel = 0.05;        // ±2.5% noise
+            scaleVariation = 0.08;    // ±4% scaling
+            lengthVariation = 0.02;   // ±1% length
+            missingPoints = 0.001;    // 0.1% missing points
+            break;
+        case 'poor_quality':
+            noiseLevel = 0.08;        // ±4% noise
+            scaleVariation = 0.12;    // ±6% scaling
+            lengthVariation = 0.03;   // ±1.5% length
+            missingPoints = 0.005;    // 0.5% missing points
+            break;
+        case 'very_poor_quality':
+            noiseLevel = 0.15;        // ±7.5% noise
+            scaleVariation = 0.20;    // ±10% scaling
+            lengthVariation = 0.05;   // ±2.5% length
+            missingPoints = 0.01;     // 1% missing points
+            break;
+        default:
+            return addExtractionNoise(originalSignal);
+    }
+    
+    // Dodaj noise na osnovu kvaliteta
+    for (let i = 0; i < noisySignal.length; i++) {
+        // Random noise
+        noisySignal[i] += noiseLevel * (Math.random() - 0.5);
+        
+        // Amplitude scaling
+        noisySignal[i] *= (1 - scaleVariation/2 + scaleVariation * Math.random());
+        
+        // Simuliraj missing/corrupted points
+        if (Math.random() < missingPoints) {
+            // Interpoliraj sa susednim tačkama
+            if (i > 0 && i < noisySignal.length - 1) {
+                noisySignal[i] = (noisySignal[i-1] + noisySignal[i+1]) / 2;
+            }
+        }
+    }
+    
+    // Length variation
+    const lengthFactor = 1 - lengthVariation/2 + lengthVariation * Math.random();
+    const newLength = Math.floor(originalSignal.length * lengthFactor);
+    
+    if (newLength < originalSignal.length) {
+        return noisySignal.slice(0, newLength);
+    } else {
+        // Produžи signal interpolacijom
+        while (noisySignal.length < newLength) {
+            const lastIdx = noisySignal.length - 1;
+            noisySignal.push(noisySignal[lastIdx] + 0.01 * (Math.random() - 0.5));
+        }
+        return noisySignal;
+    }
 }
 
 function displayCorrelationResults(data, testName) {
@@ -4675,6 +4790,7 @@ function displayCorrelationResults(data, testName) {
 }
 
 function displayBatchCorrelationResults(data) {
+    console.log("📊 Enhanced Batch Correlation Results:", data);
     const resultsDiv = document.getElementById("correlationResults");
     
     const stats = data.summary_statistics;
@@ -4695,19 +4811,22 @@ function displayBatchCorrelationResults(data) {
                             <strong>Broj testova:</strong> ${stats.num_tests}
                         </div>
                         <div style="margin: 10px 0;">
-                            <strong>Prosečna korelacija:</strong>
-                            <span style="background: ${stats.mean_correlation >= 0.8 ? '#28a745' : '#ffc107'}; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold;">
-                                ${stats.mean_correlation.toFixed(3)}
+                            <strong>Uspešnih testova:</strong> ${stats.successful_tests}/${stats.num_tests}
+                        </div>
+                        <div style="margin: 10px 0;">
+                            <strong>Pearson r:</strong>
+                            <span style="background: ${stats.mean_pearson_r >= 0.8 ? '#28a745' : '#dc3545'}; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold;">
+                                ${stats.mean_pearson_r.toFixed(3)} ± ${stats.std_pearson_r.toFixed(3)}
                             </span>
                         </div>
                         <div style="margin: 10px 0;">
-                            <strong>Std. devijacija:</strong> ${stats.std_correlation.toFixed(3)}
+                            <strong>RMSE:</strong> ${stats.mean_rmse.toFixed(3)} ± ${stats.std_rmse.toFixed(3)}
                         </div>
                         <div style="margin: 10px 0;">
-                            <strong>Opseg:</strong> ${stats.min_correlation.toFixed(3)} - ${stats.max_correlation.toFixed(3)}
+                            <strong>Lag:</strong> ${stats.mean_lag_ms.toFixed(1)} ± ${stats.std_lag_ms.toFixed(1)} ms
                         </div>
                         
-                        <div style="background: ${stats.mean_correlation >= 0.8 ? '#d4edda' : '#fff3cd'}; padding: 10px; border-radius: 5px; margin-top: 15px; border-left: 3px solid ${stats.mean_correlation >= 0.8 ? '#28a745' : '#ffc107'};">
+                        <div style="background: ${stats.mean_pearson_r >= 0.7 ? '#d4edda' : '#f8d7da'}; padding: 10px; border-radius: 5px; margin-top: 15px; border-left: 3px solid ${stats.mean_pearson_r >= 0.7 ? '#28a745' : '#dc3545'};">
                             <strong>🎯 Kvalitet Sistema:</strong><br>
                             <small>${assessment}</small>
                         </div>
@@ -4721,6 +4840,22 @@ function displayBatchCorrelationResults(data) {
                                 • <strong>Slab (<0.7):</strong> ${stats.poor_count}
                             </div>
                         </div>
+                        
+                        ${data.detailed_results ? `
+                        <div style="margin-top: 15px;">
+                            <h5><i class="fas fa-list"></i> Detaljni Rezultati</h5>
+                            <div style="font-size: 0.85em; max-height: 200px; overflow-y: auto;">
+                                ${data.detailed_results.map(result => 
+                                    result.status === 'success' 
+                                        ? `• <strong>${result.file}:</strong><br>
+                                           &nbsp;&nbsp;r=${result.enhanced_metrics.pearson_r.toFixed(3)}, 
+                                           RMSE=${result.enhanced_metrics.rmse.toFixed(3)}, 
+                                           lag=${result.enhanced_metrics.lag_ms.toFixed(1)}ms<br>`
+                                        : `• <strong>${result.file}:</strong> ${result.status}<br>`
+                                ).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
                     </div>
                 </div>
             </div>
@@ -4746,11 +4881,48 @@ function showCorrelationProgress(show) {
 
 function showCorrelationError(errorMessage) {
     const resultsDiv = document.getElementById("correlationResults");
+    
+    // Enhanced error handling sa detaljnim objašnjenjima
+    let enhancedError = errorMessage;
+    let suggestions = [];
+    
+    if (errorMessage.includes("too small")) {
+        suggestions.push("Učitajte sliku veću od 50x50 piksela");
+        suggestions.push("Koristite sliku veće rezolucije EKG-a");
+    } else if (errorMessage.includes("no clear EKG traces")) {
+        suggestions.push("Proverite da slika sadrži jasne EKG linije");
+        suggestions.push("Povećajte kontrast slike pre učitavanja");
+        suggestions.push("Koristite sliku sa belom pozadinom i crnim linijama");
+    } else if (errorMessage.includes("grid lines")) {
+        suggestions.push("Slika sadrži samo grid bez EKG signala");
+        suggestions.push("Koristite sliku sa vidljivim EKG talasima");
+    } else if (errorMessage.includes("length at least 2")) {
+        suggestions.push("Algoritam nije mogao da pronađe dovoljno signal tačaka");
+        suggestions.push("Koristite jasniju EKG sliku sa boljim kontrastom");
+    } else if (errorMessage.includes("Both algorithms failed")) {
+        suggestions.push("Ni osnovni ni napredni algoritam nisu radili");
+        suggestions.push("Pokušajte sa drugačijom EKG slikom");
+        suggestions.push("Proverite da slika sadrži jasne EKG linije");
+    }
+    
+    if (suggestions.length === 0) {
+        suggestions.push("Pokušajte sa drugačijom EKG slikom");
+        suggestions.push("Proverite kvalitet i format slike");
+    }
+    
     resultsDiv.innerHTML = `
-        <div class="alert alert-danger">
-            <h6>❌ Greška u Korelacijskoj Analizi</h6>
-            <p>${errorMessage}</p>
-            <small>Proverite server logs za više detalja.</small>
+        <div class="alert alert-danger" style="border-left: 4px solid #dc3545;">
+            <h6 style="color: #721c24; margin-bottom: 10px;"><i class="fas fa-exclamation-triangle"></i> Greška u Korelacijskoj Analizi</h6>
+            <p style="margin-bottom: 15px; color: #721c24;"><strong>Problem:</strong> ${enhancedError}</p>
+            <div style="background: #f8d7da; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
+                <strong style="color: #721c24;">💡 Preporučena rešenja:</strong>
+                <ul style="margin: 8px 0 0 0; padding-left: 20px;">
+                    ${suggestions.map(s => `<li style="color: #721c24; margin-bottom: 4px;">${s}</li>`).join('')}
+                </ul>
+            </div>
+            <div style="background: #fff3cd; padding: 8px; border-radius: 4px; border-left: 3px solid #ffc107;">
+                <small style="color: #856404;"><strong>Napomena:</strong> Korelacijska analiza zahteva sliku sa jasnim EKG signalom. Algoritam pokušava da prepozna EKG linije i konvertuje ih u digitalni signal za analizu.</small>
+            </div>
         </div>
     `;
 }
