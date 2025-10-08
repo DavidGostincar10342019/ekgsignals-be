@@ -2839,7 +2839,12 @@ class EKGAnalyzer {
         }
 
         vizSection.innerHTML = `
-            <h2><i class="fas fa-chart-line"></i> Vizuelizacije za Master Rad <span style="font-size: 0.4em; color: #666;">(v3.1)</span></h2>
+            <div class="result-card collapsible collapsed">
+                <div class="result-header" onclick="toggleResultCard(this)">
+                    <i class="fas fa-chart-line result-icon" style="color: #3498db;"></i>
+                    <h3 class="result-title">8. Vizuelizacije za Master Rad: Furijeova i Z-transformacija u analizi biomedicinskih signala</h3>
+                </div>
+                <div class="result-content">
             <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
                 <strong>📊 Furijeova i Z-transformacija u analizi biomedicinskih signala</strong><br>
                 Generišu se grafici za uključivanje u poglavlje 5 master rada...
@@ -3679,22 +3684,28 @@ EKGAnalyzer.prototype.getVisualizationExplanation = function(key, viz) {
 
 // Zamena postojeće funkcije addThesisVisualizations sa novom implementacijom
 EKGAnalyzer.prototype.addThesisVisualizations = function(visualizations) {
-    console.log('🎯 v3.1 Starting addThesisVisualizations with info buttons');
+    console.log('🎯 v3.1 Creating accordion thesis visualizations');
     console.log('📊 Available visualizations:', Object.keys(visualizations.visualizations || {}));
     
     // Ukloni postojeće vizuelizacije
     const existing = document.getElementById('thesisVisualizationsSection');
     if (existing) existing.remove();
     
-    // Kreiraj novu sekciju
+    // Kreiraj accordion sekciju 8
     const section = document.createElement('div');
     section.id = 'thesisVisualizationsSection';
-    section.className = 'main-card';
+    section.className = 'result-card collapsible collapsed';
     section.style.marginTop = '20px';
     
     let html = `
-        <h2><i class="fas fa-chart-line"></i> ${visualizations.description || 'Vizuelizacije za Master Rad'}</h2>
-        <p class="subtitle">${visualizations.subtitle || ''}</p>
+        <div class="result-header" onclick="toggleResultCard(this)">
+            <i class="fas fa-chart-line result-icon" style="color: #3498db;"></i>
+            <h3 class="result-title">8. Vizuelizacije za Master Rad: Furijeova i Z-transformacija u analizi biomedicinskih signala</h3>
+        </div>
+        <div class="result-content">
+            <p style="margin-bottom: 20px; color: #666; font-style: italic;">
+                Grafici spremni za uključivanje u poglavlje 5
+            </p>
     `;
     
     // Dodaj svaku vizuelizaciju
@@ -3769,13 +3780,18 @@ EKGAnalyzer.prototype.addThesisVisualizations = function(visualizations) {
         }
     }
     
+    // Zatvori accordion strukturu
+    html += `
+        </div>
+    `;
+    
     section.innerHTML = html;
     
     // Dodaj sekciju na stranu
     const resultsSection = document.getElementById('resultsSection');
     resultsSection.parentNode.insertBefore(section, resultsSection.nextSibling);
     
-    console.log('✅ v3.1 Thesis visualizations section added successfully with info buttons');
+    console.log('✅ v3.1 Accordion thesis visualizations section (8) added successfully');
 };
 
 // Initialize app when DOM is loaded
@@ -3967,15 +3983,92 @@ function addInfoButtonsToVisualizations() {
     }, 1000);
 }
 
-// Aktiviraj kada se učitaju vizualizacije
+// Aktiviraj kada se učitaju vizualizacije - CREATE SECTION 8 AS ACCORDION
 const originalAddThesis = EKGAnalyzer.prototype.addThesisVisualizations;
 EKGAnalyzer.prototype.addThesisVisualizations = function(visualizations) {
+    console.log('🔄 Creating section 8: Thesis Visualizations as accordion');
+    
+    if (visualizations) {
+        console.log('📊 Creating accordion thesis visualizations section...');
+        
+        // Create section 8 as accordion
+        const thesisHTML = `
+            <div id="thesisVisualizationsSection" class="result-card collapsible collapsed" style="margin-top: 20px;">
+                <div class="result-header" onclick="toggleResultCard(this)">
+                    <i class="fas fa-chart-line result-icon" style="color: #3498db;"></i>
+                    <h3 class="result-title">8. Vizuelizacije za Master Rad: Furijeova i Z-transformacija u analizi biomedicinskih signala</h3>
+                </div>
+                <div class="result-content">
+                    <p style="margin-bottom: 20px; color: #666; font-style: italic;">
+                        Grafici spremni za uključivanje u poglavlje 5
+                    </p>
+                    
+                    ${visualizations.fft_analysis ? `
+                        <div class="chart-container" style="margin-bottom: 20px;">
+                            <h4 style="margin-bottom: 10px;">FFT Analiza</h4>
+                            <img src="${visualizations.fft_analysis}" alt="FFT Analiza" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                        </div>
+                    ` : ''}
+                    
+                    ${visualizations.z_transform ? `
+                        <div class="chart-container" style="margin-bottom: 20px;">
+                            <h4 style="margin-bottom: 10px;">Z-Transformacija</h4>
+                            <img src="${visualizations.z_transform}" alt="Z-Transformacija" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                        </div>
+                    ` : ''}
+                    
+                    ${visualizations.frequency_domain ? `
+                        <div class="chart-container" style="margin-bottom: 20px;">
+                            <h4 style="margin-bottom: 10px;">Frekvencijski Domen</h4>
+                            <img src="${visualizations.frequency_domain}" alt="Frekvencijski Domen" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                        </div>
+                    ` : ''}
+                    
+                    ${visualizations.combined_analysis ? `
+                        <div class="chart-container" style="margin-bottom: 20px;">
+                            <h4 style="margin-bottom: 10px;">Kombinovana Analiza</h4>
+                            <img src="${visualizations.combined_analysis}" alt="Kombinovana Analiza" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+        
+        // Find where to insert section 8 (after section 7)
+        const resultsSection = document.getElementById('resultsSection');
+        if (resultsSection) {
+            // Remove existing thesis section if present
+            const existingThesis = document.getElementById('thesisVisualizationsSection');
+            if (existingThesis) {
+                existingThesis.remove();
+            }
+            
+            // Insert section 8 after results section
+            resultsSection.insertAdjacentHTML('afterend', thesisHTML);
+            console.log('✅ Section 8 (Thesis Visualizations) created as accordion');
+        }
+    }
+    
+    // Also call the original function for compatibility
     const result = originalAddThesis.call(this, visualizations);
     addInfoButtonsToVisualizations();
     return result;
 };
 
 console.log("🎓 Educational system loaded - will add info buttons to visualizations");
+
+// 🎯 ACCORDION TOGGLE FUNCTION - Global function za result cards
+function toggleResultCard(headerElement) {
+    const resultCard = headerElement.closest('.result-card');
+    
+    if (resultCard.classList.contains('collapsed')) {
+        // Expand
+        resultCard.classList.remove('collapsed');
+    } else {
+        // Collapse
+        resultCard.classList.add('collapsed');
+    }
+}
 
 // Initialize the EKG Analyzer when the page loads
 document.addEventListener('DOMContentLoaded', function() {
