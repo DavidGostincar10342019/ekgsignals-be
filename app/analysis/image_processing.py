@@ -99,13 +99,162 @@ def process_ekg_image(image_data, is_base64=True, skip_validation=False):
 
 def extract_ekg_signal(img):
     """
-    POBOLJŠANO: Ekstraktuje EKG signal iz CELE slike umesto samo iz konture
+    POBOLJŠANO: Dual-method EKG signal extraction
+    Prvo pokušava edge detection, zatim fallback na dark pixel detection
     
     Args:
         img: OpenCV slika (BGR format)
     
     Returns:
         numpy.array: 1D signal amplituda
+    """
+    # Pokušaj EDGE DETECTION metodu (najbolja za testslika2)
+    try:
+        edge_signal = extract_ekg_signal_edge_detection(img)
+        if len(edge_signal) > 0 and np.std(edge_signal) > 0.05:  # Validni signal sa dovoljno varijacije
+            return edge_signal
+    except Exception as e:
+        print(f"Edge detection failed: {e}")
+    
+    # Fallback na DARK PIXEL metodu (dobra za testslika1 i testslika3)
+    try:
+        dark_signal = extract_ekg_signal_dark_pixels(img)
+        if len(dark_signal) > 0:
+            return dark_signal
+    except Exception as e:
+        print(f"Dark pixel detection failed: {e}")
+    
+    # Final fallback na originalnu metodu
+    return extract_ekg_signal_original(img)
+
+def extract_ekg_signal_edge_detection(img):
+    """
+    NOVA METODA: Edge detection pristup - NAJBOLJA za testslika2
+    """
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    height, width = gray.shape
+    
+    # Edge detection za pronalaženje EKG linija
+    edges = cv2.Canny(gray, 30, 100)
+    
+    # Morfološko zatvaranje da spojimo prekinute linije
+    kernel = np.ones((3, 3), np.uint8)
+    edges_closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
+    
+    signal = []
+    
+    for x in range(width):
+        column = edges_closed[:, x]
+        edge_pixels = np.where(column == 255)[0]
+        
+        if len(edge_pixels) > 0:
+            # Grupiši edge piksele i izaberi centralnu grupu
+            groups = []
+            current_group = [edge_pixels[0]]
+            
+            for i in range(1, len(edge_pixels)):
+                if edge_pixels[i] - edge_pixels[i-1] <= 5:
+                    current_group.append(edge_pixels[i])
+                else:
+                    groups.append(current_group)
+                    current_group = [edge_pixels[i]]
+            groups.append(current_group)
+            
+            # Izaberi grupu najbližu vertikalnom centru
+            center_y = height // 2
+            best_group = min(groups, key=lambda g: abs(np.mean(g) - center_y))
+            
+            signal_y = np.mean(best_group)
+            signal_value = (height - signal_y) / height
+            signal.append(signal_value)
+        else:
+            # Interpolacija
+            if signal:
+                signal.append(signal[-1])
+            else:
+                signal.append(0.5)
+    
+    return np.array(signal)
+
+def extract_ekg_signal_dark_pixels(img):
+    """
+    NOVA METODA: Dark pixel detection - DOBRA za testslika1 i testslika3
+    """
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    height, width = gray.shape
+    
+    extracted_signal = []
+    
+    for x in range(width):
+        column = gray[:, x]
+        
+        # Pronađi najcrnje piksele u koloni (potencijalni EKG signal)
+        col_mean = np.mean(column)
+        col_std = np.std(column)
+        
+        # Threshold: pikseli tamniji od (mean - std)
+        dark_threshold = col_mean - col_std
+        dark_pixels = np.where(column < dark_threshold)[0]
+        
+        if len(dark_pixels) > 0:
+            # Grupiši susedne tamne piksele
+            groups = []
+            current_group = [dark_pixels[0]]
+            
+            for i in range(1, len(dark_pixels)):
+                if dark_pixels[i] - dark_pixels[i-1] <= 3:  # Gap <= 3 pixels
+                    current_group.append(dark_pixels[i])
+                else:
+                    if len(current_group) >= 2:  # Grupa mora imati min 2 piksela
+                        groups.append(current_group)
+                    current_group = [dark_pixels[i]]
+            
+            if len(current_group) >= 2:
+                groups.append(current_group)
+            
+            if groups:
+                # Izaberi grupu sa najcrnjim pikselima
+                best_group = None
+                darkest_value = 255  # Max brightness
+                
+                for group in groups:
+                    group_darkness = np.mean([column[y] for y in group])
+                    if group_darkness < darkest_value:
+                        darkest_value = group_darkness
+                        best_group = group
+                
+                if best_group:
+                    signal_y = np.mean(best_group)
+                    signal_value = (height - signal_y) / height
+                    extracted_signal.append(signal_value)
+                else:
+                    darkest_y = np.argmin(column)
+                    signal_value = (height - darkest_y) / height
+                    extracted_signal.append(signal_value)
+            else:
+                darkest_y = np.argmin(column)
+                signal_value = (height - darkest_y) / height
+                extracted_signal.append(signal_value)
+        else:
+            darkest_y = np.argmin(column)
+            signal_value = (height - darkest_y) / height
+            extracted_signal.append(signal_value)
+    
+    signal_array = np.array(extracted_signal)
+    
+    # Post-processing
+    if len(signal_array) > 20:
+        q25, q75 = np.percentile(signal_array, [25, 75])
+        iqr = q75 - q25
+        lower_bound = q25 - 1.5 * iqr
+        upper_bound = q75 + 1.5 * iqr
+        signal_array = np.clip(signal_array, lower_bound, upper_bound)
+    
+    return signal_array
+
+def extract_ekg_signal_original(img):
+    """
+    ORIGINALNA METODA kao fallback
     """
     # Konverzija u grayscale
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)

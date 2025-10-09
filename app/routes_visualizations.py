@@ -478,11 +478,23 @@ def batch_correlation_analysis():
                         "file": "uploaded_image"
                     })
                 else:
-                    # Generiši referentni signal iste dužine
-                    reference_signal = _generate_reference_signal(len(extracted_signal))
+                    # ISPRAVKA: Implementiraj pipeline korelaciju
+                    # 1. Originalni signal iz slike
+                    original_signal = extracted_signal.copy()
                     
-                    # Izračunaj enhanced metrike
-                    enhanced_metrics = _calculate_enhanced_metrics(reference_signal, extracted_signal, fs)
+                    # 2. Pipeline: 1D → 2D → 1D
+                    generated_2d = _convert_1d_to_2d_image(original_signal)
+                    
+                    # 3. Ekstraktuj iz generirane slike
+                    from .analysis.image_processing import extract_ekg_signal
+                    processed_signal = extract_ekg_signal(generated_2d)
+                    
+                    # Normalizuj oba signala
+                    if len(processed_signal) > 0 and np.std(processed_signal) > 0:
+                        processed_signal = (processed_signal - np.mean(processed_signal)) / np.std(processed_signal)
+                    
+                    # Izračunaj pipeline korelaciju
+                    enhanced_metrics = _calculate_enhanced_metrics(original_signal, processed_signal, fs)
                     
                     # Oceni kvalitet
                     pearson_r = enhanced_metrics["pearson_r"]
@@ -793,26 +805,116 @@ def _extract_signal_from_base64(image_base64):
     except Exception as e:
         return None, f"Exception: {str(e)}"
 
-def _generate_reference_signal(length, signal_type="normal_ecg"):
-    """Generiši referentni EKG signal za poređenje"""
-    np.random.seed(42)  # Za konzistentnost
+def _generate_reference_signal_corrected(image_path, extraction_method="pipeline"):
+    """
+    ISPRAVLJENA verzija: Generiše reference signal iz ISTE slike
+    Implementira pravi pipeline: Slika → 1D → 2D → 1D
+    """
+    from .analysis.image_processing import extract_ekg_signal
+    
+    try:
+        # KORAK 1: Izvuci originalni 1D signal iz slike
+        img = cv2.imread(image_path)
+        if img is None:
+            # Fallback na stari način ako ne može da učita
+            return _generate_reference_signal_old(1000, "normal_ecg")
+        
+        original_1d = extract_ekg_signal(img)
+        
+        if len(original_1d) < 10:
+            return _generate_reference_signal_old(1000, "normal_ecg")
+        
+        # Normalizuj
+        original_1d = (original_1d - np.mean(original_1d)) / np.std(original_1d)
+        
+        if extraction_method == "pipeline":
+            # KORAK 2: 1D → 2D → 1D pipeline za reference
+            generated_2d = _convert_1d_to_2d_image(original_1d)
+            reference_1d = extract_ekg_signal(generated_2d)
+            
+            # Normalizuj procesiran signal
+            if len(reference_1d) > 0 and np.std(reference_1d) > 0:
+                reference_1d = (reference_1d - np.mean(reference_1d)) / np.std(reference_1d)
+                return reference_1d
+            else:
+                return original_1d
+        else:
+            # Direktno vrati originalni signal
+            return original_1d
+            
+    except Exception as e:
+        print(f"Pipeline reference generation failed: {e}")
+        return _generate_reference_signal_old(1000, "normal_ecg")
+
+def _convert_1d_to_2d_image(signal_1d, width=None, height=200):
+    """
+    Konvertuje 1D signal u 2D EKG sliku sa adaptivnom širinom
+    """
+    # Adaptivna širina bazirana na dužini signala
+    if width is None:
+        width = max(800, len(signal_1d))  # Minimum 800, ali može i više
+    
+    # Kreiraj praznu sliku
+    img = np.ones((height, width, 3), dtype=np.uint8) * 255
+    
+    # Dodaj grid
+    img = _add_simple_grid(img)
+    
+    # Normalizuj signal
+    if np.std(signal_1d) > 0:
+        signal_normalized = (signal_1d - np.min(signal_1d)) / (np.max(signal_1d) - np.min(signal_1d))
+    else:
+        signal_normalized = np.ones_like(signal_1d) * 0.5
+    
+    # Skaliraj na visinu
+    margin = height * 0.1
+    signal_y = margin + signal_normalized * (height - 2 * margin)
+    
+    # X koordinate - VAŽNO: koristi punu dužinu signala
+    signal_x = np.linspace(50, width - 50, len(signal_1d))
+    
+    # Iscrtaj liniju
+    points = []
+    for i in range(len(signal_1d)):
+        x = int(signal_x[i])
+        y = int(height - signal_y[i])
+        points.append([x, y])
+    
+    points = np.array(points, dtype=np.int32)
+    cv2.polylines(img, [points], isClosed=False, color=(0, 0, 0), thickness=2)
+    
+    return img
+
+def _add_simple_grid(img):
+    """Dodaje jednostavan grid"""
+    height, width = img.shape[:2]
+    grid_color = (220, 220, 220)
+    
+    # Vertikalne linije
+    for x in range(0, width, 20):
+        cv2.line(img, (x, 0), (x, height), grid_color, 1)
+    
+    # Horizontalne linije  
+    for y in range(0, height, 10):
+        cv2.line(img, (0, y), (width, y), grid_color, 1)
+    
+    return img
+
+def _generate_reference_signal_old(length, signal_type="normal_ecg"):
+    """Zadržana stara verzija za fallback"""
+    np.random.seed(42)
     
     if signal_type == "normal_ecg":
-        # Generiši normalan EKG ritam
-        t = np.linspace(0, length/250, length)  # 250 Hz sampling
-        
-        # Osnovna sinusoidalna komponenta (heart rate ~75 bpm)
-        hr_freq = 1.25  # 75 bpm = 1.25 Hz
+        t = np.linspace(0, length/250, length)
+        hr_freq = 1.25
         base_signal = 0.1 * np.sin(2 * np.pi * hr_freq * t)
         
-        # Dodaj QRS komplekse
-        qrs_period = int(250 / hr_freq)  # Samples per beat
+        qrs_period = int(250 / hr_freq)
         signal_data = base_signal.copy()
         
         for i in range(0, length, qrs_period):
             if i + 20 < length:
-                # Simuliraj QRS kompleks
-                qrs_width = 20  # ~80ms na 250Hz
+                qrs_width = 20
                 qrs_time = np.linspace(-1, 1, qrs_width)
                 qrs_shape = 0.8 * np.exp(-2 * qrs_time**2) * np.sin(np.pi * qrs_time)
                 
@@ -820,37 +922,10 @@ def _generate_reference_signal(length, signal_type="normal_ecg"):
                 actual_width = end_idx - i
                 signal_data[i:end_idx] += qrs_shape[:actual_width]
         
-        # Dodaj P i T talase
-        for i in range(qrs_period//3, length, qrs_period):
-            if i + 10 < length:
-                # P talas
-                p_width = 10
-                p_time = np.linspace(-1, 1, p_width)
-                p_shape = 0.1 * np.exp(-p_time**2)
-                
-                end_idx = min(i + p_width, length)
-                actual_width = end_idx - i
-                signal_data[i:end_idx] += p_shape[:actual_width]
-        
-        for i in range(2*qrs_period//3, length, qrs_period):
-            if i + 15 < length:
-                # T talas
-                t_width = 15
-                t_time = np.linspace(-1, 1, t_width)
-                t_shape = 0.15 * np.exp(-0.5 * t_time**2)
-                
-                end_idx = min(i + t_width, length)
-                actual_width = end_idx - i
-                signal_data[i:end_idx] += t_shape[:actual_width]
-        
-        # Dodaj realističan šum
         noise = 0.01 * np.random.randn(length)
         signal_data += noise
-        
         return signal_data
-    
     else:
-        # Jednostavan test signal
         t = np.linspace(0, length/250, length)
         return np.sin(2 * np.pi * 1 * t) + 0.5 * np.sin(2 * np.pi * 2 * t)
 

@@ -113,13 +113,24 @@ def analyze_ekg_image():
         if not image_data:
             return jsonify({"error": "Nedostaje slika"}), 400
         
-        # Process with the new unified function
-        result = unified_process_ekg_image(image_data, return_steps=False)
+        # Process with the OPTIMIZED unified function
+        from .analysis.optimized_ekg_processing import optimized_process_ekg_image
+        result = optimized_process_ekg_image(image_data, return_steps=False)
         
         if "error" in result:
             return jsonify(result), 400
-            
-        return jsonify(result)
+        
+        # Add signal info for compatibility with existing endpoints
+        response = {
+            "signal": result.get("signal", []),
+            "success": result.get("success", True),
+            "method": result.get("method", result.get("processing_method", "optimized")),
+            "processing_metadata": result.get("processing_metadata", {}),
+            "signal_length": len(result.get("signal", [])),
+            "image_shape": result.get("image_shape", [])
+        }
+        
+        return jsonify(response)
         
     except Exception as e:
         return jsonify({"error": f"Greška pri obradi: {str(e)}"}), 500
@@ -146,9 +157,10 @@ def complete_ekg_analysis():
             # Proverava da li je slika generisana iz signala (preskače validaciju)
             skip_validation = payload.get("skip_validation", False)
             try:
-                print("DEBUG: Processing image with UNIFIED function...")
-                # Use the new unified function
-                image_result = unified_process_ekg_image(payload["image"], return_steps=False)
+                print("DEBUG: Processing image with OPTIMIZED function...")
+                # Use the OPTIMIZED unified function
+                from .analysis.optimized_ekg_processing import optimized_process_ekg_image
+                image_result = optimized_process_ekg_image(payload["image"], return_steps=False)
 
                 if "error" in image_result:
                     print(f"DEBUG: Unified image processing failed: {image_result['error']}")
@@ -157,6 +169,9 @@ def complete_ekg_analysis():
                 signal = image_result["signal"]
                 fs = payload.get("fs", 250) # The signal from unified is already processed, no need for preprocess_for_analysis
                 print(f"DEBUG: Extracted signal length from unified processor: {len(signal)}")
+                
+                # Store optimization metadata for later use
+                optimization_metadata = image_result.get("processing_metadata", {})
 
             except Exception as e:
                 print(f"DEBUG: Exception in unified image processing block: {str(e)}")
@@ -203,6 +218,10 @@ def complete_ekg_analysis():
             "sampling_frequency": fs,
             **image_info
         }
+        
+        # Add optimization metadata to results if available
+        if 'optimization_metadata' in locals():
+            results["optimization_metadata"] = optimization_metadata
         
         # 5.5. NOVA: Analiza ritma iz slike (pre algoritamske analize)
         try:
@@ -532,7 +551,8 @@ def educational_analysis():
             try:
                 print("DEBUG: Processing image with UNIFIED function for educational endpoint...")
                 # Use the new unified function
-                image_result = unified_process_ekg_image(payload["image"], return_steps=False)
+                from .analysis.optimized_ekg_processing import optimized_process_ekg_image
+                image_result = optimized_process_ekg_image(payload["image"], return_steps=False)
 
                 if "error" in image_result:
                     print(f"DEBUG: Unified image processing failed: {image_result['error']}")
@@ -1568,7 +1588,8 @@ def analyze_image_v2():
             return jsonify({"error": "Image data is missing"}), 400
         
         # Process the image using the unified function
-        result = unified_process_ekg_image(image_data, return_steps=False)
+        from .analysis.optimized_ekg_processing import optimized_process_ekg_image
+        result = optimized_process_ekg_image(image_data, return_steps=False)
         
         if "error" in result:
             return jsonify(result), 400
@@ -1592,7 +1613,8 @@ def analyze_image_steps():
             return jsonify({"error": "Image data is missing"}), 400
         
         # Process the image and request intermediate steps
-        result = unified_process_ekg_image(image_data, return_steps=True)
+        from .analysis.optimized_ekg_processing import optimized_process_ekg_image
+        result = optimized_process_ekg_image(image_data, return_steps=True)
         
         if "error" in result:
             return jsonify(result), 400
