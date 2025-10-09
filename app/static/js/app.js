@@ -4174,39 +4174,7 @@ function createImageProcessingSection() {
     const imageProcessingHTML = `
         <div id="imageProcessingSection" class="main-card" style="margin-top: 20px;">
             <h2><i class="fas fa-cogs"></i> Image Processing - Step by Step Analiza</h2>
-            <div class="info-card" style="background: #f8f9fa; margin-bottom: 20px;">
-                <h4><i class="fas fa-info-circle"></i> Implementirane Tehnike:</h4>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 10px;">
-                    <div>
-                        <p><strong>📊 Osnovne metode obrade digitalne slike:</strong></p>
-                        <ul style="margin: 0; padding-left: 20px;">
-                            <li>RGB → Grayscale konverzija</li>
-                            <li>Gaussian blur (3x3 kernel)</li>
-                            <li>Adaptivna binarizacija</li>
-                            <li>Morfološko filtriranje</li>
-                        </ul>
-                    </div>
-                    <div>
-                        <p><strong>🔧 Napredne tehnike:</strong></p>
-                        <ul style="margin: 0; padding-left: 20px;">
-                            <li>Grid detection & removal</li>
-                            <li>Contour detection</li>
-                            <li>1D signal extraction</li>
-                            <li>Band-pass filtriranje (0.5-40 Hz)</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-            
             <div class="upload-buttons" style="margin-bottom: 20px;">
-                <button class="btn btn-primary" onclick="runStepByStepAnalysis()">
-                    <i class="fas fa-search"></i>
-                    Detaljni Step-by-Step Prikaz
-                </button>
-                <button class="btn btn-success" onclick="runSummaryAnalysis()">
-                    <i class="fas fa-compress-alt"></i>
-                    Sažeti Prikaz (Pre/Posle)
-                </button>
                 <button class="btn btn-info" onclick="runTechnicalAnalysis()">
                     <i class="fas fa-microscope"></i>
                     Tehnički Detalji
@@ -4432,39 +4400,6 @@ function displayTechnicalImageProcessingResults(data) {
                 </div>
             </div>
             
-            <div class="info-card" style="margin-top: 15px;">
-                <h4><i class="fas fa-chart-bar"></i> Performanse</h4>
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
-                    <div>
-                        <strong>OpenCV Version:</strong><br>
-                        <span style="color: #666;">${data.technical_details?.opencv_version || 'N/A'}</span>
-                    </div>
-                    <div>
-                        <strong>Processing Steps:</strong><br>
-                        <span style="color: #666;">${algorithms.length} algoritma</span>
-                    </div>
-                    <div>
-                        <strong>Success Rate:</strong><br>
-                        <span style="color: #666;">${data.steps_summary?.processing_successful ? '100%' : '< 100%'}</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div style="background: #e3f2fd; padding: 15px; border-radius: 5px; margin-top: 15px; border-left: 3px solid #2196f3;">
-                <h5><i class="fas fa-graduation-cap"></i> Za Mentora - Tehnički Pregled</h5>
-                <p><strong>Implementirane su sve zahtevane tehnike:</strong></p>
-                <p>✅ <strong>Osnove obrade digitalne slike:</strong> Grayscale, blur, binarizacija</p>
-                <p>✅ <strong>Morfološko filtriranje:</strong> Grid removal, noise reduction</p>
-                <p>✅ <strong>Kontura detekcija:</strong> Automatska EKG linija ekstrakcija</p>
-                <p>✅ <strong>Signal processing:</strong> 1D konverzija + band-pass filtriranje</p>
-            </div>
-            
-            <div style="text-align: center; margin-top: 20px;">
-                <button class="btn btn-info" onclick="exportImageProcessingResults()">
-                    <i class="fas fa-download"></i>
-                    Izvezi Tehnički Izveštaj
-                </button>
-            </div>
         </div>
     `;
     
@@ -4883,85 +4818,54 @@ function displayCorrelationResults(data, testName) {
 }
 
 function displayBatchCorrelationResults(data) {
-    console.log("📊 Enhanced Batch Correlation Results:", data);
+    // Simplified UI per request: big diagram + only detailed results (r, RMSE, lag)
     const resultsDiv = document.getElementById("correlationResults");
-    
-    const stats = data.summary_statistics;
-    const assessment = data.overall_assessment;
-    
+
+    const detailedResults = (data && Array.isArray(data.detailed_results)) ? data.detailed_results : [];
+
+    const detailsHTML = detailedResults.length > 0
+        ? detailedResults.map(result => {
+            if (result.status === 'success' && result.enhanced_metrics) {
+                const m = result.enhanced_metrics;
+                const r = (m.pearson_r ?? 0).toFixed(3);
+                const rmse = (m.rmse ?? 0).toFixed(3);
+                const lag = (m.lag_ms ?? 0).toFixed(1);
+                return `
+                <div style="padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
+                    <div style="color:#111; font-weight:600;">r=${r}</div>
+                    <div style="color:#111;">RMSE=${rmse}</div>
+                    <div style="color:#111;">lag=${lag}ms</div>
+                </div>`;
+            } else {
+                return `
+                <div style="padding: 8px 0; border-bottom: 1px solid #f0f0f0; color:#111;">
+                    ${result.status || 'n/a'}
+                </div>`;
+            }
+        }).join('')
+        : '<em>Nema dostupnih detaljnih rezultata</em>';
+
     const resultsHTML = `
         <div class="main-card" style="margin-top: 20px;">
             <h3><i class="fas fa-chart-bar"></i> Batch Korelacijska Analiza</h3>
-            
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 20px;">
-                <div>
-                    <img src="${data.batch_analysis_plot}" style="width: 100%; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);" alt="Batch Correlation Analysis">
-                </div>
-                <div>
-                    <div class="info-card">
-                        <h4><i class="fas fa-chart-pie"></i> Statistike</h4>
-                        <div style="margin: 10px 0;">
-                            <strong>Broj testova:</strong> ${stats.num_tests}
-                        </div>
-                        <div style="margin: 10px 0;">
-                            <strong>Uspešnih testova:</strong> ${stats.successful_tests}/${stats.num_tests}
-                        </div>
-                        <div style="margin: 10px 0;">
-                            <strong>Pearson r:</strong>
-                            <span style="background: ${stats.mean_pearson_r >= 0.8 ? '#28a745' : '#dc3545'}; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold;">
-                                ${stats.mean_pearson_r.toFixed(3)} ± ${stats.std_pearson_r.toFixed(3)}
-                            </span>
-                        </div>
-                        <div style="margin: 10px 0;">
-                            <strong>RMSE:</strong> ${stats.mean_rmse.toFixed(3)} ± ${stats.std_rmse.toFixed(3)}
-                        </div>
-                        <div style="margin: 10px 0;">
-                            <strong>Lag:</strong> ${stats.mean_lag_ms.toFixed(1)} ± ${stats.std_lag_ms.toFixed(1)} ms
-                        </div>
-                        
-                        <div style="background: ${stats.mean_pearson_r >= 0.7 ? '#d4edda' : '#f8d7da'}; padding: 10px; border-radius: 5px; margin-top: 15px; border-left: 3px solid ${stats.mean_pearson_r >= 0.7 ? '#28a745' : '#dc3545'};">
-                            <strong>🎯 Kvalitet Sistema:</strong><br>
-                            <small>${assessment}</small>
-                        </div>
-                        
-                        <div style="margin-top: 15px;">
-                            <h5><i class="fas fa-chart-pie"></i> Distribucija</h5>
-                            <div style="font-size: 0.9em;">
-                                • <strong>Odličan (>0.9):</strong> ${stats.excellent_count}<br>
-                                • <strong>Dobar (>0.8):</strong> ${stats.good_count}<br>
-                                • <strong>Osrednji (>0.7):</strong> ${stats.fair_count}<br>
-                                • <strong>Slab (<0.7):</strong> ${stats.poor_count}
-                            </div>
-                        </div>
-                        
-                        ${data.detailed_results ? `
-                        <div style="margin-top: 15px;">
-                            <h5><i class="fas fa-list"></i> Detaljni Rezultati</h5>
-                            <div style="font-size: 0.85em; max-height: 200px; overflow-y: auto;">
-                                ${data.detailed_results.map(result => 
-                                    result.status === 'success' 
-                                        ? `• <strong>${result.file}:</strong><br>
-                                           &nbsp;&nbsp;r=${result.enhanced_metrics.pearson_r.toFixed(3)}, 
-                                           RMSE=${result.enhanced_metrics.rmse.toFixed(3)}, 
-                                           lag=${result.enhanced_metrics.lag_ms.toFixed(1)}ms<br>`
-                                        : `• <strong>${result.file}:</strong> ${result.status}<br>`
-                                ).join('')}
-                            </div>
-                        </div>
-                        ` : ''}
-                    </div>
-                </div>
+
+            <!-- Enlarged diagram -->
+            <div style="margin-bottom: 20px;">
+                <img src="${data.batch_analysis_plot}" 
+                     style="width: 100%; max-width: 1200px; display: block; margin: 0 auto; border-radius: 10px; box-shadow: 0 4px 18px rgba(0,0,0,0.15);"
+                     alt="Batch Correlation Analysis">
             </div>
-            
-            <div style="text-align: center; margin-top: 20px;">
-                <button class="btn btn-info" onclick="exportCorrelationResults()">
-                    <i class="fas fa-download"></i>
-                    Izvezi Rezultate
-                </button>
+
+            <!-- Only Detaljni Rezultati -->
+            <div class="info-card" style="padding: 16px;">
+                <h4 style="margin-top: 0;"><i class="fas fa-list"></i> Detaljni Rezultati</h4>
+                <div style="font-size: 0.95em; line-height: 1.6;">
+                    ${detailsHTML}
+                </div>
             </div>
         </div>
     `;
-    
+
     resultsDiv.innerHTML = resultsHTML;
 }
 
