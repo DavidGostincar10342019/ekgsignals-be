@@ -17,7 +17,7 @@ from .analysis.correlation_visualization import (
     generate_correlation_demo_for_mentor,
     create_batch_correlation_report
 )
-from .analysis.signal_to_image import compare_signals, test_signal_to_image_conversion
+from .analysis.signal_to_image import compare_signals, test_signal_to_image_conversion, create_ekg_image_from_signal
 import cv2
 from scipy.stats import pearsonr
 import matplotlib.pyplot as plt
@@ -483,11 +483,13 @@ def batch_correlation_analysis():
                     original_signal = extracted_signal.copy()
                     
                     # 2. Pipeline: 1D → 2D → 1D
-                    generated_2d = _convert_1d_to_2d_image(original_signal)
+                    # 2. 1D → 2D (koristi isti generator kao i u round-trip-u)
+                    gen = create_ekg_image_from_signal(original_signal, fs, style="clinical")
+                    generated_2d = gen['image_opencv']
                     
-                    # 3. Ekstraktuj iz generirane slike
-                    from .analysis.image_processing import extract_ekg_signal
-                    processed_signal = extract_ekg_signal(generated_2d)
+                    # 3. Ekstraktuj iz generirane slike (koristi visual_v1 pipeline)
+                    vis = visualize_complete_image_processing(gen['image_base64'], show_intermediate_steps=False)
+                    processed_signal = np.array(vis.get('extracted_signal', []))
                     
                     # Normalizuj oba signala
                     if len(processed_signal) > 0 and np.std(processed_signal) > 0:
@@ -707,101 +709,37 @@ def _assess_clinical_relevance(ekg_metrics, correlation_result):
         }
 
 def _extract_real_signal_from_image(image_path):
-    """Izvuci STVARNI EKG signal iz slike koristeći osnovni algoritam"""
+    """Izvuci STVARNI EKG signal iz slike koristeći visual_v1 pipeline (konzistentno)."""
     try:
-        from .analysis.image_processing import extract_ekg_signal, extract_ekg_signal_advanced
-        
-        # Učitaj sliku direktno u OpenCV format
+        # Učitaj sliku direktno i konvertuj u base64 za vizuelni pipeline
         img = cv2.imread(image_path)
         if img is None:
             return None, f"Failed to load image: {image_path}"
-        
-        # POBOLJŠANO: Koristi ISTU metodu kao u analyze/complete
-        print("DEBUG KORELACIJA (file): Koristim poboljšanu metodu ekstrakcije")
-        
-        # Pokušaj poboljšani algoritam PRVO
-        try:
-            advanced_result = extract_ekg_signal_advanced(img)
-            if advanced_result.get("success", False):
-                signal_data = advanced_result["signal"]
-                if len(signal_data) > 0:
-                    print(f"DEBUG KORELACIJA (file): Poboljšani algoritam uspešan - {len(signal_data)} samples")
-                    return np.array(signal_data), None
-        except Exception as e:
-            print(f"DEBUG KORELACIJA (file): Poboljšani algoritam neuspešan: {e}")
-        
-        # Fallback na osnovni algoritam (koji je sada poboljšan)
-        try:
-            basic_signal = extract_ekg_signal(img)
-            if len(basic_signal) > 0:
-                print(f"DEBUG KORELACIJA (file): Osnovni algoritam uspešan - {len(basic_signal)} samples")
-                return np.array(basic_signal), None
-        except Exception as e:
-            print(f"DEBUG KORELACIJA (file): Osnovni algoritam neuspešan: {e}")
-        
-        # Ako ništa ne radi, pokušaj stari advanced
-        try:
-            advanced_result = extract_ekg_signal_advanced(img)
-            if advanced_result.get("success", False):
-                signal_data = advanced_result["signal"]
-                if len(signal_data) > 0:
-                    return np.array(signal_data), None
-        except Exception as e:
-            pass
-        
-        return None, "Both algorithms failed to extract signal"
-            
+        _, buf = cv2.imencode('.png', img)
+        import base64 as _b64
+        b64 = 'data:image/png;base64,' + _b64.b64encode(buf).decode('utf-8')
+
+        vis = visualize_complete_image_processing(b64, show_intermediate_steps=False)
+        if vis.get('success', False):
+            sig = vis.get('extracted_signal', [])
+            if len(sig) > 0:
+                return np.array(sig), None
+            return None, 'visual_v1 returned empty signal'
+        return None, vis.get('error', 'visual_v1 pipeline failed')
     except Exception as e:
         return None, f"Exception: {str(e)}"
 
 def _extract_signal_from_base64(image_base64):
-    """Izvuci EKG signal iz base64 slike sa improved error handling"""
+    """Izvuci EKG signal iz base64 slike koristeći visual_v1 pipeline (konzistentno)."""
     try:
-        from .analysis.image_processing import extract_ekg_signal, extract_ekg_signal_advanced
-        
-        # Dekoduj base64 sliku
-        if ',' in image_base64:
-            image_base64_clean = image_base64.split(',')[1]
-        else:
-            image_base64_clean = image_base64
-        
-        image_bytes = base64.b64decode(image_base64_clean)
-        nparr = np.frombuffer(image_bytes, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
-        if img is None:
-            return None, "Failed to decode base64 image"
-        
-        # Proveravaj minimum image size
-        height, width = img.shape[:2]
-        if height < 50 or width < 50:
-            return None, f"Image too small ({width}x{height}). Minimum 50x50 pixels required for EKG analysis"
-        
-        # POBOLJŠANO: Koristi poboljšanu metodu PRVO
-        print("DEBUG KORELACIJA (base64): Koristim poboljšanu metodu ekstrakcije")
-        
-        # Pokušaj poboljšani algoritam PRVO
-        try:
-            advanced_result = extract_ekg_signal_advanced(img)
-            if advanced_result.get("success", False):
-                signal_data = advanced_result.get("signal", [])
-                if len(signal_data) >= 2:  # Minimum za correlation analizu
-                    print(f"DEBUG KORELACIJA (base64): Poboljšani algoritam uspešan - {len(signal_data)} samples")
-                    return np.array(signal_data), None
-        except Exception as e:
-            print(f"DEBUG KORELACIJA (base64): Poboljšani algoritam neuspešan: {e}")
-        
-        # Fallback na osnovni algoritam (koji je sada poboljšan)
-        try:
-            basic_signal = extract_ekg_signal(img)
-            if len(basic_signal) >= 2:  # Minimum za correlation analizu
-                print(f"DEBUG KORELACIJA (base64): Osnovni algoritam uspešan - {len(basic_signal)} samples")
-                return np.array(basic_signal), None
-        except Exception as e:
-            print(f"DEBUG KORELACIJA (base64): Osnovni algoritam neuspešan: {e}")
-        
-        return None, f"Cannot extract valid EKG signal from image ({width}x{height}). Possible causes: Image too small (<50x50), poor quality, no clear EKG traces, or image contains only grid lines without actual signal"
-            
+        # Direktno prosledi base64 u vizuelni pipeline radi konzistentnosti sa round-trip
+        vis = visualize_complete_image_processing(image_base64, show_intermediate_steps=False)
+        if vis.get('success', False):
+            sig = vis.get('extracted_signal', [])
+            if len(sig) >= 2:
+                return np.array(sig), None
+            return None, 'visual_v1 returned empty or too short signal'
+        return None, vis.get('error', 'visual_v1 pipeline failed')
     except Exception as e:
         return None, f"Exception: {str(e)}"
 

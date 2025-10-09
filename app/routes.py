@@ -113,23 +113,20 @@ def analyze_ekg_image():
         if not image_data:
             return jsonify({"error": "Nedostaje slika"}), 400
         
-        # Process with the OPTIMIZED unified function
-        from .analysis.optimized_ekg_processing import optimized_process_ekg_image
-        result = optimized_process_ekg_image(image_data, return_steps=False)
-        
-        if "error" in result:
-            return jsonify(result), 400
-        
-        # Add signal info for compatibility with existing endpoints
+        # Force visual_v1 pipeline always
+        from .analysis.image_processing_visualization import visualize_complete_image_processing
+        vis = visualize_complete_image_processing(image_data, show_intermediate_steps=False)
+        if not vis.get("success", False):
+            return jsonify({"error": vis.get("error", "Visualization pipeline failed")}), 400
+        signal_out = vis.get("extracted_signal", [])
         response = {
-            "signal": result.get("signal", []),
-            "success": result.get("success", True),
-            "method": result.get("method", result.get("processing_method", "optimized")),
-            "processing_metadata": result.get("processing_metadata", {}),
-            "signal_length": len(result.get("signal", [])),
-            "image_shape": result.get("image_shape", [])
+            "signal": signal_out,
+            "success": True,
+            "method": "visual_v1",
+            "processing_metadata": {"pipeline": "visual_v1"},
+            "signal_length": len(signal_out),
+            "image_shape": vis.get("metadata", {}).get("image_shape", [])
         }
-        
         return jsonify(response)
         
     except Exception as e:
@@ -157,21 +154,15 @@ def complete_ekg_analysis():
             # Proverava da li je slika generisana iz signala (preskače validaciju)
             skip_validation = payload.get("skip_validation", False)
             try:
-                print("DEBUG: Processing image with OPTIMIZED function...")
-                # Use the OPTIMIZED unified function
-                from .analysis.optimized_ekg_processing import optimized_process_ekg_image
-                image_result = optimized_process_ekg_image(payload["image"], return_steps=False)
-
-                if "error" in image_result:
-                    print(f"DEBUG: Unified image processing failed: {image_result['error']}")
-                    return jsonify(image_result), 400
-
-                signal = image_result["signal"]
-                fs = payload.get("fs", 250) # The signal from unified is already processed, no need for preprocess_for_analysis
-                print(f"DEBUG: Extracted signal length from unified processor: {len(signal)}")
-                
-                # Store optimization metadata for later use
-                optimization_metadata = image_result.get("processing_metadata", {})
+                print("DEBUG: Processing image with visual_v1 pipeline (forced)...")
+                from .analysis.image_processing_visualization import visualize_complete_image_processing
+                vis = visualize_complete_image_processing(payload["image"], show_intermediate_steps=False)
+                if not vis.get("success", False):
+                    return jsonify({"error": vis.get("error", "Visualization pipeline failed")}), 400
+                signal = vis.get("extracted_signal", [])
+                fs = payload.get("fs", 250)
+                print(f"DEBUG: Extracted signal length from visual_v1: {len(signal)}")
+                optimization_metadata = {"pipeline": "visual_v1"}
 
             except Exception as e:
                 print(f"DEBUG: Exception in unified image processing block: {str(e)}")
@@ -1587,14 +1578,16 @@ def analyze_image_v2():
         if not image_data:
             return jsonify({"error": "Image data is missing"}), 400
         
-        # Process the image using the unified function
-        from .analysis.optimized_ekg_processing import optimized_process_ekg_image
-        result = optimized_process_ekg_image(image_data, return_steps=False)
-        
-        if "error" in result:
-            return jsonify(result), 400
-            
-        return safe_jsonify(result)
+        # Force visual_v1 pipeline for V2 as well
+        from .analysis.image_processing_visualization import visualize_complete_image_processing
+        vis = visualize_complete_image_processing(image_data, show_intermediate_steps=False)
+        if not vis.get("success", False):
+            return jsonify({"error": vis.get("error", "Visualization pipeline failed")}), 400
+        return safe_jsonify({
+            **vis,
+            "method": "visual_v1",
+            "processing_metadata": {"pipeline": "visual_v1"}
+        })
         
     except Exception as e:
         return jsonify({"error": f"An error occurred in the V2 endpoint: {str(e)}"}), 500
@@ -1612,14 +1605,16 @@ def analyze_image_steps():
         if not image_data:
             return jsonify({"error": "Image data is missing"}), 400
         
-        # Process the image and request intermediate steps
-        from .analysis.optimized_ekg_processing import optimized_process_ekg_image
-        result = optimized_process_ekg_image(image_data, return_steps=True)
-        
-        if "error" in result:
-            return jsonify(result), 400
-            
-        return safe_jsonify(result)
+        # Force visual_v1 pipeline with steps
+        from .analysis.image_processing_visualization import visualize_complete_image_processing
+        vis = visualize_complete_image_processing(image_data, show_intermediate_steps=True)
+        if not vis.get("success", False):
+            return jsonify({"error": vis.get("error", "Visualization pipeline failed")}), 400
+        return safe_jsonify({
+            **vis,
+            "method": "visual_v1",
+            "processing_metadata": {"pipeline": "visual_v1"}
+        })
         
     except Exception as e:
         return jsonify({"error": f"An error occurred in the steps endpoint: {str(e)}"}), 500
