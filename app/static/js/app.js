@@ -2842,7 +2842,7 @@ class EKGAnalyzer {
             <div class="result-card collapsible collapsed">
                 <div class="result-header" onclick="toggleResultCard(this)">
                     <i class="fas fa-chart-line result-icon" style="color: #3498db;"></i>
-                    <h3 class="result-title">8. Vizuelizacije za Master Rad: Furijeova i Z-transformacija u analizi biomedicinskih signala</h3>
+                    <h3 class="result-title">8. Vizuelizacije: Furijeova i Z-transformacija u analizi biomedicinskih signala</h3>
                 </div>
                 <div class="result-content">
             <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
@@ -3843,6 +3843,35 @@ window.loadLazyImage = function(key) {
 
 console.log("🔧 Broken pipe fix helper functions loaded");
 
+// Simple lightbox for enlarging images
+window.openImageLightbox = function(imageSrc) {
+    try {
+        // Create overlay
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 10000;
+            display: flex; align-items: center; justify-content: center; padding: 20px; cursor: zoom-out;
+        `;
+
+        // Create image wrapper
+        const img = document.createElement('img');
+        img.src = imageSrc;
+        img.alt = 'Preview';
+        img.style.cssText = `
+            max-width: 95vw; max-height: 90vh; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        `;
+
+        // Close on click anywhere
+        overlay.addEventListener('click', () => document.body.removeChild(overlay));
+        overlay.appendChild(img);
+        document.body.appendChild(overlay);
+    } catch (e) {
+        console.error('Lightbox error:', e);
+        // Fallback: open in new tab
+        try { window.open(imageSrc, '_blank'); } catch (_) {}
+    }
+};
+
 
 // EDUKATIVNI SISTEM - "i" dugme objašnjenja
 window.showEducationalInfo = function(vizKey, vizTitle, vizDescription) {
@@ -4103,14 +4132,14 @@ function createCorrelationTestSection() {
         <div id="correlationTestSection" class="main-card" style="margin-top: 20px;">
             <h2><i class="fas fa-microscope"></i> Korelacijska Analiza EKG Sistema</h2>
             <div class="info-card" style="background: #e3f2fd; margin-bottom: 20px;">
-                <p><strong>Cilj:</strong> Testiranje kvaliteta prebacivanja EKG slike u 1D signal</p>
-                <p><strong>Mentor zahtev:</strong> Korelacija između originalnog i ekstraktovanog signala + frekvencijska analiza</p>
+                <p>Testiranje kvaliteta prebacivanja EKG slike u 1D signal</p>
+                <p>Korelacija između originalnog i ekstraktovanog signala + frekvencijska analiza</p>
             </div>
             
             <div class="upload-buttons" style="margin-bottom: 20px;">
                 <button class="btn btn-warning" onclick="runBatchCorrelationTest()">
                     <i class="fas fa-chart-bar"></i>
-                    Batch Analiza
+                    Analiza
                 </button>
             </div>
             
@@ -4173,7 +4202,7 @@ function createImageProcessingSection() {
     
     const imageProcessingHTML = `
         <div id="imageProcessingSection" class="main-card" style="margin-top: 20px;">
-            <h2><i class="fas fa-cogs"></i> Image Processing - Step by Step Analiza</h2>
+            <h2><i class="fas fa-cogs"></i>Analiza Slike</h2>
             <div class="upload-buttons" style="margin-bottom: 20px;">
                 <button class="btn btn-info" onclick="runTechnicalAnalysis()">
                     <i class="fas fa-microscope"></i>
@@ -4380,8 +4409,8 @@ function displayTechnicalImageProcessingResults(data) {
         <div class="main-card" style="margin-top: 20px;">
             <h3><i class="fas fa-microscope"></i> Tehnička Analiza Image Processing-a</h3>
             
-            <div style="margin-bottom: 20px;">
-                <img src="${data.visualization}" style="width: 100%; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);" alt="Technical Image Processing Analysis">
+            <div style="margin-bottom: 20px; cursor: zoom-in;">
+                <img src="${data.visualization}" style="width: 100%; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);" alt="Technical Image Processing Analysis" onclick="openImageLightbox('${data.visualization.replace(/'/g, "&#39;")}')">
             </div>
             
             <div class="info-card">
@@ -4528,7 +4557,7 @@ async function runBatchCorrelationTest() {
     try {
         // PROVERИ DA LI POSTOJI TRENUTNA SLIKA
         if (!window.currentImageData && !window.currentAnalysisResults) {
-            alert('Molimo prvo analizirajte sliku ili uvezite signal pre batch testa.');
+            alert('Molimo prvo analizirajte sliku ili uvezite signal pre testa.');
             hideCorrelationProgress();
             return;
         }
@@ -4592,7 +4621,7 @@ async function runBatchCorrelationTest() {
         if (window.currentImageData) {
             // Use current uploaded image
             requestBody.image_data = window.currentImageData;
-            console.log("🖼️ Using uploaded image for batch correlation");
+            console.log("🖼️ Using uploaded image for correlation");
         } else {
             console.log("📋 No uploaded image, using test images");
         }
@@ -4610,11 +4639,11 @@ async function runBatchCorrelationTest() {
         if (data.success) {
             displayBatchCorrelationResults(data);
         } else {
-            showCorrelationError(data.error || "Batch analiza neuspešna");
+            showCorrelationError(data.error || "analiza neuspešna");
         }
         
     } catch (error) {
-        showCorrelationError("Greška u batch analizi: " + error.message);
+        showCorrelationError("Greška u analizi: " + error.message);
     } finally {
         showCorrelationProgress(false);
     }
@@ -4847,13 +4876,13 @@ function displayBatchCorrelationResults(data) {
 
     const resultsHTML = `
         <div class="main-card" style="margin-top: 20px;">
-            <h3><i class="fas fa-chart-bar"></i> Batch Korelacijska Analiza</h3>
+            <h3><i class="fas fa-chart-bar"></i> Korelacijska Analiza</h3>
 
             <!-- Enlarged diagram -->
             <div style="margin-bottom: 20px;">
                 <img src="${data.batch_analysis_plot}" 
                      style="width: 100%; max-width: 1200px; display: block; margin: 0 auto; border-radius: 10px; box-shadow: 0 4px 18px rgba(0,0,0,0.15);"
-                     alt="Batch Correlation Analysis">
+                     alt="Correlation Analysis">
             </div>
 
             <!-- Only Detaljni Rezultati -->
